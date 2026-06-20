@@ -70,7 +70,7 @@ function QuickCategoryModal({
         </div>
         <div className="px-5 py-4 space-y-3">
           <div>
-            <label className="text-xs font-semibold text-gray-200 mb-1 block">Product Name</label>
+            <label className="text-xs font-semibold text-gray-500 mb-1 block">Product Name</label>
             <input autoFocus value={name} onChange={e => setName(e.target.value)}
               placeholder="e.g. Food"
               className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl outline-none focus:border-[#714B67] transition text-[#121B35] placeholder:text-gray-300" />
@@ -92,10 +92,10 @@ function QuickCategoryModal({
         </div>
         <div className="grid grid-cols-2 border-t border-gray-100 divide-x divide-gray-100">
           <button onClick={onClose}
-            className="py-3 text-sm font-semibold text-gray-500 hover:bg-gray-50 transition">Save</button>
+            className="py-3 text-sm font-semibold text-gray-500 hover:bg-gray-50 transition">Discard</button>
           <button onClick={handleSave}
             className="py-3 text-sm font-semibold text-[#714B67] hover:bg-[#714B67]/5 transition flex items-center justify-center gap-1.5">
-            <Check className="w-3.5 h-3.5" />Archived
+            <Check className="w-3.5 h-3.5" />Save
           </button>
         </div>
       </div>

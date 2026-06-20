@@ -130,7 +130,7 @@ export default function Orders() {
       {/* ── TOP BAR ── */}
       <header className="h-12 bg-white border-b border-gray-200 flex items-center gap-2 sm:gap-3 px-3 sm:px-4 shrink-0 z-10">
         <div className="bg-[#714B67] text-white text-xs font-bold px-2.5 py-1 rounded-lg shrink-0">Logo</div>
-        <span className="text-sm text-gray-500 font-medium hidden sm:block">Amount</span>
+        <span className="text-sm font-bold hidden sm:block" style={{ color: "#121B35" }}>Orders</span>
         <div className="flex items-center gap-0.5 ml-auto">
           {[
             { icon: ShoppingCart,      to: ROUTES.ORDERS,      title: "Orders" },
