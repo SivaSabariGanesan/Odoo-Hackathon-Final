@@ -1,33 +1,24 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import {
   Plus, Trash2, User, Menu, MonitorSmartphone, ShoppingCart,
   ArrowUpFromLine, LayoutGrid, Tag, CreditCard, Ticket,
   CalendarRange, Users, ChefHat, BarChart3, LogOut,
-  X, Check, Pencil, GripVertical,
+  X, Check, Pencil, GripVertical, Loader2, AlertCircle,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { ROUTES } from "../../routes/paths";
-
-interface TableRow { id: string; number: number; seats: number; active: boolean }
-interface Floor    { id: string; name: string; tables: TableRow[] }
-
-const INIT_FLOORS: Floor[] = [
-  {
-    id: "f1", name: "Ground Floor",
-    tables: [
-      { id: "t1", number: 1, seats: 4, active: true  },
-      { id: "t2", number: 2, seats: 2, active: true  },
-      { id: "t3", number: 3, seats: 6, active: false },
-    ],
-  },
-  {
-    id: "f2", name: "First Floor",
-    tables: [
-      { id: "t4", number: 1, seats: 4, active: true },
-      { id: "t5", number: 2, seats: 4, active: true },
-    ],
-  },
-];
+import {
+  fetchFloors,
+  createFloor,
+  updateFloor,
+  deleteFloor as deleteFloorApi,
+  createTable,
+  updateTable,
+  deleteTable as deleteTableApi,
+  toggleTableActive,
+  type Floor,
+  type Table,
+} from "../../api/floors";
 
 const NAV_ITEMS = [
   { label: "Products",           icon: LayoutGrid,    to: ROUTES.PRODUCTS },
@@ -41,23 +32,47 @@ const NAV_ITEMS = [
   { label: "Log Out",            icon: LogOut,        to: ROUTES.LOGIN },
 ];
 
-// ── Table form modal ─────────────────────────────────────────────
 function TableModal({
-  table, floorName, onClose, onSave,
+  table, floorName, floorPublicId, onClose, onSave,
 }: {
-  table: TableRow | null;
+  table: Table | null;
   floorName: string;
+  floorPublicId: string;
   onClose: () => void;
-  onSave: (t: TableRow) => void;
+  onSave: (t: Table) => void;
 }) {
-  const [number, setNumber] = useState(String(table?.number ?? ""));
-  const [seats,  setSeats]  = useState(String(table?.seats  ?? "4"));
-  const [active, setActive] = useState(table?.active ?? true);
+  const [number,  setNumber]  = useState(table?.tableNumber ?? "");
+  const [seats,   setSeats]   = useState(String(table?.seats ?? "4"));
+  const [active,  setActive]  = useState(table?.isActive ?? true);
+  const [saving,  setSaving]  = useState(false);
+  const [error,   setError]   = useState("");
 
-  function handleSave() {
-    if (!number) return;
-    onSave({ id: table?.id ?? crypto.randomUUID(), number: parseInt(number), seats: parseInt(seats) || 4, active });
-    onClose();
+  async function handleSave() {
+    if (!number.trim()) return;
+    setSaving(true);
+    setError("");
+    try {
+      let saved: Table;
+      if (table) {
+        saved = await updateTable(table.publicId, {
+          tableNumber: number.trim(),
+          seats: parseInt(seats) || 4,
+          isActive: active,
+        });
+      } else {
+        saved = await createTable({
+          floorId: floorPublicId,
+          tableNumber: number.trim(),
+          seats: parseInt(seats) || 4,
+        });
+      }
+      onSave(saved);
+      onClose();
+    } catch (e: any) {
+      setError(e?.response?.data?.error?.message ?? "Failed to save table");
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -73,9 +88,10 @@ function TableModal({
           </button>
         </div>
         <div className="px-5 py-4 space-y-3">
+          {error && <p className="text-xs text-red-500">{error}</p>}
           <div>
             <label className="text-xs font-semibold text-gray-500 mb-1 block">Table Number</label>
-            <input value={number} onChange={e => setNumber(e.target.value)} placeholder="e.g. 5" type="number"
+            <input value={number} onChange={e => setNumber(e.target.value)} placeholder="e.g. 5"
               className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl outline-none focus:border-[#714B67] transition text-[#121B35]" />
           </div>
           <div>
@@ -98,9 +114,9 @@ function TableModal({
         <div className="grid grid-cols-2 border-t border-gray-100 divide-x divide-gray-100">
           <button onClick={onClose}
             className="py-3 text-sm font-semibold text-gray-500 hover:bg-gray-50 transition">Discard</button>
-          <button onClick={handleSave}
-            className="py-3 text-sm font-semibold text-[#714B67] hover:bg-[#714B67]/5 transition flex items-center justify-center gap-1.5">
-            <Check className="w-3.5 h-3.5" />Save
+          <button onClick={handleSave} disabled={saving}
+            className="py-3 text-sm font-semibold text-[#714B67] hover:bg-[#714B67]/5 transition flex items-center justify-center gap-1.5 disabled:opacity-50">
+            {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}Save
           </button>
         </div>
       </div>
@@ -108,7 +124,6 @@ function TableModal({
   );
 }
 
-// ── Floor name edit ──────────────────────────────────────────────
 function FloorNameEdit({ name, onSave }: { name: string; onSave: (n: string) => void }) {
   const [editing, setEditing] = useState(false);
   const [val,     setVal]     = useState(name);
@@ -133,13 +148,30 @@ function FloorNameEdit({ name, onSave }: { name: string; onSave: (n: string) => 
   );
 }
 
-// ── Main page ────────────────────────────────────────────────────
 export default function FloorTableManagement() {
-  const [floors,    setFloors]    = useState<Floor[]>(INIT_FLOORS);
-  const [activeFloor, setActiveFloor] = useState(INIT_FLOORS[0].id);
-  const [tableModal, setTableModal] = useState<{ floorId: string; table: TableRow | null } | null>(null);
-  const [navOpen,   setNavOpen]   = useState(false);
+  const [floors,     setFloors]     = useState<Floor[]>([]);
+  const [activeFloor,setActiveFloor]= useState<string>("");
+  const [tableModal, setTableModal] = useState<{ floorPublicId: string; table: Table | null } | null>(null);
+  const [navOpen,    setNavOpen]    = useState(false);
+  const [loading,    setLoading]    = useState(true);
+  const [error,      setError]      = useState<string | null>(null);
   const navRef = useRef<HTMLDivElement>(null);
+
+  const loadFloors = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await fetchFloors();
+      setFloors(data);
+      if (data.length > 0 && !activeFloor) setActiveFloor(data[0].publicId);
+    } catch {
+      setError("Failed to load floors");
+    } finally {
+      setLoading(false);
+    }
+  }, [activeFloor]);
+
+  useEffect(() => { loadFloors(); }, []); // eslint-disable-line
 
   useEffect(() => {
     const h = (e: MouseEvent) => {
@@ -149,54 +181,75 @@ export default function FloorTableManagement() {
     return () => document.removeEventListener("mousedown", h);
   }, []);
 
-  const currentFloor = floors.find(f => f.id === activeFloor)!;
+  const currentFloor = floors.find(f => f.publicId === activeFloor);
 
-  function addFloor() {
-    const f: Floor = { id: crypto.randomUUID(), name: `Floor ${floors.length + 1}`, tables: [] };
-    setFloors(p => [...p, f]);
-    setActiveFloor(f.id);
+  async function handleAddFloor() {
+    try {
+      const newFloor = await createFloor({ name: `Floor ${floors.length + 1}` });
+      setFloors(p => [...p, { ...newFloor, tables: [] }]);
+      setActiveFloor(newFloor.publicId);
+    } catch { /* ignore */ }
   }
 
-  function renameFloor(id: string, name: string) {
-    setFloors(p => p.map(f => f.id === id ? { ...f, name } : f));
+  async function handleRenameFloor(publicId: string, name: string) {
+    try {
+      const updated = await updateFloor(publicId, { name });
+      setFloors(p => p.map(f => f.publicId === publicId ? { ...f, name: updated.name } : f));
+    } catch { /* ignore */ }
   }
 
-  function deleteFloor(id: string) {
-    const remaining = floors.filter(f => f.id !== id);
-    setFloors(remaining);
-    if (activeFloor === id) setActiveFloor(remaining[0]?.id ?? "");
+  async function handleDeleteFloor(publicId: string) {
+    try {
+      await deleteFloorApi(publicId);
+      const remaining = floors.filter(f => f.publicId !== publicId);
+      setFloors(remaining);
+      if (activeFloor === publicId) setActiveFloor(remaining[0]?.publicId ?? "");
+    } catch { /* ignore */ }
   }
 
-  function saveTable(floorId: string, table: TableRow) {
+  function handleSaveTable(floorId: string, table: Table) {
     setFloors(p => p.map(f => {
-      if (f.id !== floorId) return f;
-      const exists = f.tables.find(t => t.id === table.id);
+      if (f.publicId !== floorId) return f;
+      const exists = f.tables.find(t => t.publicId === table.publicId);
       return {
         ...f,
-        tables: exists ? f.tables.map(t => t.id === table.id ? table : t) : [...f.tables, table],
+        tables: exists
+          ? f.tables.map(t => t.publicId === table.publicId ? table : t)
+          : [...f.tables, table],
       };
     }));
   }
 
-  function deleteTable(floorId: string, tableId: string) {
-    setFloors(p => p.map(f =>
-      f.id !== floorId ? f : { ...f, tables: f.tables.filter(t => t.id !== tableId) }
-    ));
+  async function handleDeleteTable(floorId: string, tablePublicId: string) {
+    try {
+      await deleteTableApi(tablePublicId);
+      setFloors(p => p.map(f =>
+        f.publicId !== floorId ? f : { ...f, tables: f.tables.filter(t => t.publicId !== tablePublicId) }
+      ));
+    } catch { /* ignore */ }
   }
 
-  function toggleTableActive(floorId: string, tableId: string) {
-    setFloors(p => p.map(f =>
-      f.id !== floorId ? f : {
-        ...f,
-        tables: f.tables.map(t => t.id === tableId ? { ...t, active: !t.active } : t),
-      }
-    ));
+  async function handleToggleTable(floorId: string, tablePublicId: string) {
+    try {
+      const updated = await toggleTableActive(tablePublicId);
+      setFloors(p => p.map(f =>
+        f.publicId !== floorId ? f : {
+          ...f, tables: f.tables.map(t => t.publicId === tablePublicId ? updated : t),
+        }
+      ));
+    } catch { /* ignore */ }
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#F5F5F7]">
+        <Loader2 className="w-6 h-6 animate-spin text-[#714B67]" />
+      </div>
+    );
   }
 
   return (
     <div className="min-h-screen flex flex-col bg-[#F5F5F7]">
-
-      {/* ── TOP BAR ── */}
       <header className="h-12 bg-white border-b border-gray-200 flex items-center gap-2 px-3 sm:px-4 shrink-0 z-10">
         <div className="bg-[#714B67] text-white text-xs font-bold px-2.5 py-1 rounded-lg shrink-0">Logo</div>
         <span className="text-sm font-bold" style={{ color: "#121B35" }}>Floor & Table</span>
@@ -234,27 +287,31 @@ export default function FloorTableManagement() {
         </div>
       </header>
 
-      {/* ── BODY ── */}
       <div className="flex-1 p-3 sm:p-6 flex flex-col gap-4 max-w-4xl mx-auto w-full">
+        {error && (
+          <div className="flex items-center gap-2 text-red-500 text-sm">
+            <AlertCircle className="w-4 h-4" />{error}
+          </div>
+        )}
 
         {/* Floor tabs */}
         <div className="flex items-center gap-2 flex-wrap">
           {floors.map(f => (
-            <button key={f.id} onClick={() => setActiveFloor(f.id)}
+            <button key={f.publicId} onClick={() => setActiveFloor(f.publicId)}
               className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold border transition
-                ${activeFloor === f.id
+                ${activeFloor === f.publicId
                   ? "bg-[#714B67] text-white border-[#714B67] shadow-sm"
                   : "bg-white border-gray-200 text-gray-600 hover:border-gray-300"}`}>
               {f.name}
-              {activeFloor === f.id && floors.length > 1 && (
-                <button onClick={e => { e.stopPropagation(); deleteFloor(f.id); }}
+              {activeFloor === f.publicId && floors.length > 1 && (
+                <button onClick={e => { e.stopPropagation(); handleDeleteFloor(f.publicId); }}
                   className="text-white/60 hover:text-white transition ml-1">
                   <X className="w-3 h-3" />
                 </button>
               )}
             </button>
           ))}
-          <button onClick={addFloor}
+          <button onClick={handleAddFloor}
             className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold border border-dashed border-gray-300 text-gray-400 hover:border-[#714B67] hover:text-[#714B67] transition bg-white">
             <Plus className="w-3.5 h-3.5" />Add Floor
           </button>
@@ -263,24 +320,22 @@ export default function FloorTableManagement() {
         {/* Floor card */}
         {currentFloor && (
           <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-            {/* Card header */}
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
               <FloorNameEdit
                 name={currentFloor.name}
-                onSave={n => renameFloor(currentFloor.id, n)}
+                onSave={n => handleRenameFloor(currentFloor.publicId, n)}
               />
               <button
-                onClick={() => setTableModal({ floorId: currentFloor.id, table: null })}
+                onClick={() => setTableModal({ floorPublicId: currentFloor.publicId, table: null })}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-[#714B67]/10 hover:bg-[#714B67]/20 text-[#714B67] text-xs font-semibold rounded-lg transition">
                 <Plus className="w-3.5 h-3.5" />Add Table
               </button>
             </div>
 
-            {/* Tables */}
             {currentFloor.tables.length === 0 ? (
               <div className="py-16 text-center text-gray-400">
                 <p className="text-sm">No tables yet</p>
-                <button onClick={() => setTableModal({ floorId: currentFloor.id, table: null })}
+                <button onClick={() => setTableModal({ floorPublicId: currentFloor.publicId, table: null })}
                   className="mt-3 text-xs text-[#714B67] hover:underline font-medium">
                   + Add first table
                 </button>
@@ -298,31 +353,31 @@ export default function FloorTableManagement() {
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {currentFloor.tables.map(t => (
-                    <tr key={t.id} className="hover:bg-gray-50/70 transition group">
+                    <tr key={t.publicId} className="hover:bg-gray-50/70 transition group">
                       <td className="pl-4 py-3.5">
                         <GripVertical className="w-3.5 h-3.5 text-gray-300 group-hover:text-gray-400 cursor-grab" />
                       </td>
                       <td className="px-4 py-3.5 text-sm font-medium" style={{ color: "#121B35" }}>
-                        Table {t.number}
+                        Table {t.tableNumber}
                       </td>
                       <td className="px-4 py-3.5 text-sm text-gray-500">{t.seats} seats</td>
                       <td className="px-4 py-3.5 text-center">
-                        <button onClick={() => toggleTableActive(currentFloor.id, t.id)}
+                        <button onClick={() => handleToggleTable(currentFloor.publicId, t.publicId)}
                           className="relative inline-flex items-center rounded-full transition-colors"
-                          style={{ width: 34, height: 18, backgroundColor: t.active ? "#714B67" : "#d1d5db" }}>
+                          style={{ width: 34, height: 18, backgroundColor: t.isActive ? "#714B67" : "#d1d5db" }}>
                           <span className="absolute w-3.5 h-3.5 bg-white rounded-full shadow transition-all"
-                            style={{ left: t.active ? 16 : 2 }} />
+                            style={{ left: t.isActive ? 16 : 2 }} />
                         </button>
                       </td>
                       <td className="pr-4 py-3.5">
                         <div className="flex items-center gap-1 justify-end">
                           <button
-                            onClick={() => setTableModal({ floorId: currentFloor.id, table: t })}
+                            onClick={() => setTableModal({ floorPublicId: currentFloor.publicId, table: t })}
                             className="p-1.5 text-gray-400 hover:text-[#714B67] hover:bg-gray-100 rounded-lg transition">
                             <Pencil className="w-3.5 h-3.5" />
                           </button>
                           <button
-                            onClick={() => deleteTable(currentFloor.id, t.id)}
+                            onClick={() => handleDeleteTable(currentFloor.publicId, t.publicId)}
                             className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-red-50 rounded-lg transition">
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -337,7 +392,7 @@ export default function FloorTableManagement() {
             <div className="px-5 py-3 border-t border-gray-100 bg-gray-50">
               <p className="text-xs text-gray-400">
                 {currentFloor.tables.length} table{currentFloor.tables.length !== 1 ? "s" : ""} ·{" "}
-                {currentFloor.tables.filter(t => t.active).length} active
+                {currentFloor.tables.filter(t => t.isActive).length} active
               </p>
             </div>
           </div>
@@ -347,9 +402,10 @@ export default function FloorTableManagement() {
       {tableModal && (
         <TableModal
           table={tableModal.table}
-          floorName={floors.find(f => f.id === tableModal.floorId)?.name ?? ""}
+          floorName={floors.find(f => f.publicId === tableModal.floorPublicId)?.name ?? ""}
+          floorPublicId={tableModal.floorPublicId}
           onClose={() => setTableModal(null)}
-          onSave={t => { saveTable(tableModal.floorId, t); setTableModal(null); }}
+          onSave={t => { handleSaveTable(tableModal.floorPublicId, t); setTableModal(null); }}
         />
       )}
     </div>

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import {
   LayoutGrid, Tag, CreditCard, Ticket, CalendarRange, Users,
@@ -11,6 +11,8 @@ import { ROUTES } from "../../routes/paths";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from "recharts";
+import { fetchKpis, fetchSalesTrend, type SalesTrendPoint } from "../../api/reports";
+import { listOrders, type Order } from "../../api/orders";
 
 const NAV_ITEMS = [
   { label: "Products",           icon: LayoutGrid,    to: ROUTES.PRODUCTS },
@@ -24,35 +26,6 @@ const NAV_ITEMS = [
   { label: "Log Out",            icon: LogOut,        to: ROUTES.LOGIN },
 ];
 
-const HOURLY_SALES = [
-  { time: "9AM",  revenue: 240 },
-  { time: "10AM", revenue: 380 },
-  { time: "11AM", revenue: 520 },
-  { time: "12PM", revenue: 890 },
-  { time: "1PM",  revenue: 760 },
-  { time: "2PM",  revenue: 490 },
-  { time: "3PM",  revenue: 430 },
-  { time: "4PM",  revenue: 310 },
-  { time: "5PM",  revenue: 650 },
-  { time: "6PM",  revenue: 820 },
-  { time: "7PM",  revenue: 730 },
-  { time: "8PM",  revenue: 560 },
-];
-
-const RECENT_ORDERS = [
-  { id: "ORD-1041", table: "T4",  items: 3,  total: 1240, status: "completed", time: "2 min ago" },
-  { id: "ORD-1040", table: "T7",  items: 5,  total: 2890, status: "pending",   time: "8 min ago" },
-  { id: "ORD-1039", table: "T2",  items: 2,  total: 680,  status: "completed", time: "15 min ago" },
-  { id: "ORD-1038", table: "T9",  items: 4,  total: 1560, status: "preparing", time: "20 min ago" },
-  { id: "ORD-1037", table: "Bar", items: 1,  total: 420,  status: "completed", time: "28 min ago" },
-];
-
-const LOW_STOCK = [
-  { name: "Masala Tea", stock: 4,  threshold: 10 },
-  { name: "Lassi",      stock: 7,  threshold: 10 },
-  { name: "Fries",      stock: 2,  threshold: 15 },
-];
-
 const QUICK_LINKS = [
   { label: "Products",       icon: Package,       to: ROUTES.PRODUCTS,    color: "bg-blue-50 text-blue-600" },
   { label: "Floor Tables",   icon: MonitorSmartphone, to: ROUTES.FLOOR_TABLES, color: "bg-purple-50 text-purple-600" },
@@ -63,6 +36,12 @@ const QUICK_LINKS = [
 ];
 
 type OrderStatus = "completed" | "pending" | "preparing";
+
+function mapStatus(s: Order["status"]): OrderStatus {
+  if (s === "PAID") return "completed";
+  if (s === "PREPARING" || s === "SENT_TO_KITCHEN" || s === "READY") return "preparing";
+  return "pending";
+}
 
 function StatusBadge({ status }: { status: OrderStatus }) {
   const styles: Record<OrderStatus, string> = {
@@ -83,9 +62,37 @@ function StatusBadge({ status }: { status: OrderStatus }) {
   );
 }
 
+function formatTimeAgo(iso: string | undefined): string {
+  if (!iso) return "";
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60_000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins} min ago`;
+  return `${Math.floor(mins / 60)}h ago`;
+}
+
 export default function Dashboard() {
   const [navOpen, setNavOpen] = useState(false);
   const navRef = useRef<HTMLDivElement>(null);
+
+  const [kpis, setKpis] = useState({ totalOrders: 0, revenue: "0", avgOrderValue: "0" });
+  const [trendRaw, setTrendRaw] = useState<SalesTrendPoint[]>([]);
+  const [recentOrders, setRecentOrders] = useState<Order[]>([]);
+
+  const loadData = useCallback(async () => {
+    try {
+      const [kpiData, trendData, orderData] = await Promise.all([
+        fetchKpis({ period: "today" }),
+        fetchSalesTrend({ period: "today" }),
+        listOrders({ pageSize: 5 }),
+      ]);
+      setKpis(kpiData);
+      setTrendRaw(trendData);
+      setRecentOrders(orderData);
+    } catch { /* fail gracefully */ }
+  }, []);
+
+  useEffect(() => { loadData(); }, [loadData]);
 
   useEffect(() => {
     const h = (e: MouseEvent) => {
@@ -95,43 +102,37 @@ export default function Dashboard() {
     return () => document.removeEventListener("mousedown", h);
   }, []);
 
-  const kpis = [
+  const hourlyData = trendRaw.map(t => ({
+    time: typeof t.period === "string"
+      ? (t.period.includes("T") ? t.period.slice(11, 16) : t.period.slice(5))
+      : String(t.period),
+    revenue: parseFloat(t.revenue),
+  }));
+
+  const kpiCards = [
     {
       label: "Today's Revenue",
-      value: "₹7,640",
-      trend: "+12%",
+      value: `₹${parseFloat(kpis.revenue).toLocaleString("en-IN")}`,
       up: true,
-      sub: "vs. yesterday",
+      sub: "today",
       icon: DollarSign,
       iconBg: "bg-emerald-50",
       iconColor: "text-emerald-600",
     },
     {
       label: "Orders Today",
-      value: "42",
-      trend: "+5",
+      value: String(kpis.totalOrders),
       up: true,
-      sub: "vs. yesterday",
+      sub: "today",
       icon: ClipboardList,
       iconBg: "bg-blue-50",
       iconColor: "text-blue-600",
     },
     {
-      label: "Active Tables",
-      value: "6 / 14",
-      trend: "43%",
-      up: true,
-      sub: "occupancy",
-      icon: MonitorSmartphone,
-      iconBg: "bg-[#714B67]/10",
-      iconColor: "text-[#714B67]",
-    },
-    {
       label: "Avg. Order Value",
-      value: "₹181",
-      trend: "-8%",
-      up: false,
-      sub: "vs. last week",
+      value: `₹${parseFloat(kpis.avgOrderValue).toLocaleString("en-IN")}`,
+      up: true,
+      sub: "today",
       icon: ShoppingCart,
       iconBg: "bg-amber-50",
       iconColor: "text-amber-600",
@@ -140,12 +141,9 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen flex flex-col bg-[#F5F5F7]">
-
-      {/* ── TOP BAR ── */}
       <header className="h-12 bg-white border-b border-gray-200 flex items-center gap-3 px-4 shrink-0 z-10">
         <div className="bg-[#714B67] text-white text-xs font-bold px-2.5 py-1 rounded-lg shrink-0">Logo</div>
         <span className="text-sm font-bold" style={{ color: "#121B35" }}>Dashboard</span>
-
         <div className="flex items-center gap-0.5 ml-auto">
           {[
             { icon: ShoppingCart,      to: ROUTES.ORDERS,      title: "Orders" },
@@ -158,7 +156,6 @@ export default function Dashboard() {
             </Link>
           ))}
         </div>
-
         <div className="relative" ref={navRef}>
           <button onClick={() => setNavOpen(!navOpen)}
             className="p-2 text-gray-400 hover:text-[#714B67] hover:bg-gray-50 rounded-lg transition">
@@ -177,10 +174,7 @@ export default function Dashboard() {
         </div>
       </header>
 
-      {/* ── CONTENT ── */}
       <div className="flex-1 overflow-auto p-4 sm:p-6 space-y-5">
-
-        {/* Welcome + date */}
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-lg font-bold" style={{ color: "#121B35" }}>Good morning 👋</h1>
@@ -190,14 +184,13 @@ export default function Dashboard() {
           </div>
           <Link to={ROUTES.POS_SESSION}
             className="hidden sm:flex items-center gap-2 bg-[#714B67] hover:bg-[#5d3d55] text-white text-xs font-semibold px-4 py-2 rounded-xl transition shadow-sm">
-            <ArrowUpFromLine className="w-3.5 h-3.5" />
-            Open POS
+            <ArrowUpFromLine className="w-3.5 h-3.5" />Open POS
           </Link>
         </div>
 
         {/* KPI Cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-          {kpis.map(kpi => (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+          {kpiCards.map(kpi => (
             <div key={kpi.label} className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4">
               <div className="flex items-start justify-between mb-3">
                 <p className="text-xs text-gray-400 leading-tight">{kpi.label}</p>
@@ -206,10 +199,9 @@ export default function Dashboard() {
                 </div>
               </div>
               <p className="text-2xl font-extrabold mb-1" style={{ color: "#121B35" }}>{kpi.value}</p>
-              <div className={`flex items-center gap-1 text-xs font-semibold ${kpi.up ? "text-emerald-600" : "text-red-500"}`}>
-                {kpi.up ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                {kpi.trend}
-                <span className="text-gray-400 font-normal">{kpi.sub}</span>
+              <div className="flex items-center gap-1 text-xs font-semibold text-emerald-600">
+                <TrendingUp className="w-3 h-3" />
+                {kpi.sub}
               </div>
             </div>
           ))}
@@ -217,11 +209,10 @@ export default function Dashboard() {
 
         {/* Sales Chart + Quick Links */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          {/* Sales trend */}
           <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
             <p className="text-sm font-bold mb-4" style={{ color: "#121B35" }}>Today's Sales Trend</p>
             <ResponsiveContainer width="100%" height={180}>
-              <LineChart data={HOURLY_SALES}>
+              <LineChart data={hourlyData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                 <XAxis dataKey="time" tick={{ fontSize: 10, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 10, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
@@ -230,17 +221,12 @@ export default function Dashboard() {
                   labelStyle={{ color: "#121B35", fontWeight: 600 }}
                   formatter={(v) => [`₹${v ?? 0}`, "Revenue"]}
                 />
-                <Line
-                  type="monotone" dataKey="revenue"
-                  stroke="#714B67" strokeWidth={2.5}
-                  dot={{ fill: "#714B67", r: 3 }}
-                  activeDot={{ r: 5 }}
-                />
+                <Line type="monotone" dataKey="revenue" stroke="#714B67" strokeWidth={2.5}
+                  dot={{ fill: "#714B67", r: 3 }} activeDot={{ r: 5 }} />
               </LineChart>
             </ResponsiveContainer>
           </div>
 
-          {/* Quick Links */}
           <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
             <p className="text-sm font-bold mb-4" style={{ color: "#121B35" }}>Quick Links</p>
             <div className="grid grid-cols-2 gap-2">
@@ -257,79 +243,45 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Recent Orders + Low Stock */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          {/* Recent Orders */}
-          <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
-              <p className="text-sm font-bold" style={{ color: "#121B35" }}>Recent Orders</p>
-              <Link to={ROUTES.ORDERS} className="text-xs text-[#714B67] font-semibold hover:underline">
-                View all
-              </Link>
-            </div>
-            <div className="divide-y divide-gray-50">
-              {RECENT_ORDERS.map(order => (
-                <div key={order.id} className="flex items-center gap-3 px-5 py-3 hover:bg-gray-50/50 transition">
-                  <div className="w-9 h-9 rounded-xl bg-[#714B67]/10 flex items-center justify-center shrink-0">
-                    <span className="text-xs font-bold text-[#714B67]">{order.table}</span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-semibold text-[#121B35]">{order.id}</p>
-                      <StatusBadge status={order.status as OrderStatus} />
-                    </div>
-                    <p className="text-xs text-gray-400 mt-0.5">{order.items} items · {order.time}</p>
-                  </div>
-                  <span className="text-sm font-bold text-[#121B35] shrink-0">₹{order.total.toLocaleString()}</span>
-                </div>
-              ))}
-            </div>
+        {/* Recent Orders */}
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
+            <p className="text-sm font-bold" style={{ color: "#121B35" }}>Recent Orders</p>
+            <Link to={ROUTES.ORDERS} className="text-xs text-[#714B67] font-semibold hover:underline">
+              View all
+            </Link>
           </div>
-
-          {/* Low Stock Alert */}
-          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
-              <p className="text-sm font-bold" style={{ color: "#121B35" }}>Low Stock</p>
-              <Link to={ROUTES.PRODUCTS} className="text-xs text-[#714B67] font-semibold hover:underline">
-                Manage
-              </Link>
-            </div>
-            <div className="divide-y divide-gray-50">
-              {LOW_STOCK.map(item => {
-                const pct = Math.round((item.stock / item.threshold) * 100);
-                const critical = pct <= 30;
+          <div className="divide-y divide-gray-50">
+            {recentOrders.length === 0 ? (
+              <p className="text-sm text-gray-400 text-center py-8">No orders yet today</p>
+            ) : (
+              recentOrders.map(order => {
+                const status = mapStatus(order.status);
                 return (
-                  <div key={item.name} className="px-5 py-3">
-                    <div className="flex items-center justify-between mb-1.5">
-                      <div className="flex items-center gap-2">
-                        <AlertCircle className={`w-3.5 h-3.5 shrink-0 ${critical ? "text-red-400" : "text-amber-400"}`} />
-                        <p className="text-sm font-medium text-[#121B35]">{item.name}</p>
-                      </div>
-                      <span className={`text-xs font-bold ${critical ? "text-red-500" : "text-amber-500"}`}>
-                        {item.stock} left
+                  <div key={order.publicId} className="flex items-center gap-3 px-5 py-3 hover:bg-gray-50/50 transition">
+                    <div className="w-9 h-9 rounded-xl bg-[#714B67]/10 flex items-center justify-center shrink-0">
+                      <span className="text-xs font-bold text-[#714B67]">
+                        {order.table?.tableNumber ?? "T"}
                       </span>
                     </div>
-                    <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all ${critical ? "bg-red-400" : "bg-amber-400"}`}
-                        style={{ width: `${Math.min(pct, 100)}%` }}
-                      />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-semibold text-[#121B35]">{order.orderNumber}</p>
+                        <StatusBadge status={status} />
+                      </div>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        {order.items?.length ?? 0} items · {formatTimeAgo(order.createdAt)}
+                      </p>
                     </div>
-                    <p className="text-[10px] text-gray-400 mt-1">Threshold: {item.threshold} units</p>
+                    <span className="text-sm font-bold text-[#121B35] shrink-0">
+                      ₹{parseFloat(order.grandTotal).toLocaleString("en-IN")}
+                    </span>
                   </div>
                 );
-              })}
-            </div>
-            {/* Summary note */}
-            <div className="px-5 py-3 bg-red-50/60 border-t border-red-100">
-              <p className="text-xs text-red-500 font-medium flex items-center gap-1.5">
-                <AlertCircle className="w-3 h-3" />
-                {LOW_STOCK.length} items need restocking
-              </p>
-            </div>
+              })
+            )}
           </div>
         </div>
-
       </div>
     </div>
   );

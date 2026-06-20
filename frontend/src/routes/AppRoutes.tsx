@@ -51,6 +51,7 @@ export default function AppRouter() {
         <Routes>
 
           {/* ── Public ───────────────────────────────────────────── */}
+          <Route path="/" element={<Login />} />
           <Route path="/login" element={<Login />} />
           {/* /signup — customer self-registration */}
           <Route path={ROUTES.SIGNUP} element={<Signup />} />

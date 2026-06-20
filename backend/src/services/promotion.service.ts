@@ -20,9 +20,9 @@ export async function validateCoupon(
   orderId: bigint,
 ): Promise<{ valid: true; promotion: EligiblePromotion } | { valid: false; reason: string; code: string }> {
   const promo = await db.query.promotions.findFirst({
-    where: (p, { and, eq, or }) =>
+    where: (p, { and, eq, or, sql }) =>
       and(
-        eq(p.couponCode, code),
+        sql`UPPER(${p.couponCode}) = UPPER(${code})`,
         or(eq(p.type, "COUPON_PERCENTAGE"), eq(p.type, "COUPON_FIXED")),
       ),
   });
@@ -203,7 +203,7 @@ export async function listPromotions(params: {
     }),
   ]);
 
-  return { rows, total: totalRes[0].c, page, pageSize };
+  return { rows, total: totalRes[0]?.c ?? 0, page, pageSize };
 }
 
 export async function getPromotionById(publicId: string) {

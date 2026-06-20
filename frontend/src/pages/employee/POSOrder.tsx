@@ -23,10 +23,14 @@ import {
   type PaymentMethodType,
 } from "../../api/payments";
 import { listCategories, listProducts, type Category, type Product } from "../../api/products";
-import { createOrder, addItemToOrder } from "../../api/orders";
+import { createOrder, addItemToOrder, applyCoupon as applyCouponApi } from "../../api/orders";
 
 interface CartItem {
-  id: string; name: string; unitPrice: number; qty: number;
+  id: string;           // product publicId
+  orderItemId?: string; // order item publicId (set once synced to backend)
+  name: string;
+  unitPrice: number;
+  qty: number;
   productDiscount?: number;
 }
 
@@ -161,22 +165,42 @@ function PromotionSelectorModal({
 function CouponModal({
   onClose,
   onApply,
+  orderId,
 }: {
   onClose: () => void;
-  onApply: (code: string) => void;
+  onApply: (code: string, discountAmount: number) => void;
+  orderId?: string;
 }) {
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  // Mock valid codes
-  const VALID: Record<string, number> = { "SAVE20": 20, "OFFER30": 30, "FLAT10": 10 };
-
-  function handleEnter() {
+  async function handleEnter() {
     const upper = code.trim().toUpperCase();
     if (!upper) { setError("Please enter a coupon code."); return; }
-    if (!VALID[upper]) { setError("Invalid coupon code."); return; }
-    onApply(upper);
-    onClose();
+    if (!orderId) {
+      setError("Add at least one item to the cart before applying a coupon.");
+      return;
+    }
+    setLoading(true);
+    try {
+      const updatedOrder = await applyCouponApi(orderId, upper);
+      const discount = parseFloat(updatedOrder.discountAmount ?? "0");
+      onApply(upper, discount);
+      onClose();
+    } catch (e: any) {
+      const reason = e?.response?.data?.error?.code ?? "";
+      const msg =
+        reason === "COUPON_NOT_FOUND" ? "Coupon code not found." :
+        reason === "COUPON_INACTIVE"  ? "This coupon is inactive." :
+        reason === "COUPON_EXPIRED"   ? "This coupon has expired." :
+        reason === "COUPON_MAX_USES_REACHED" ? "Coupon usage limit reached." :
+        reason === "COUPON_NOT_ELIGIBLE" ? "Order doesn't meet the minimum amount." :
+        e?.response?.data?.error?.message ?? "Invalid coupon code.";
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -204,14 +228,16 @@ function CouponModal({
             className="w-full px-4 py-2.5 text-sm border border-gray-200 rounded-xl outline-none focus:border-[#714B67] transition text-[#121B35] placeholder:text-gray-300"
           />
           {error && <p className="text-xs text-red-500">{error}</p>}
-          <p className="text-[10px] text-gray-400">Try: SAVE20 · OFFER30 · FLAT10</p>
+          <p className="text-[10px] text-gray-400">Enter a valid coupon code</p>
         </div>
         {/* CTA */}
         <div className="px-5 pb-5">
           <button
             onClick={handleEnter}
-            className="w-full bg-[#714B67] hover:bg-[#5d3d55] text-white text-sm font-bold py-2.5 rounded-xl transition shadow-sm"
+            disabled={loading}
+            className="w-full bg-[#714B67] hover:bg-[#5d3d55] text-white text-sm font-bold py-2.5 rounded-xl transition shadow-sm disabled:opacity-50 flex items-center justify-center gap-2"
           >
+            {loading && <Loader2 className="w-4 h-4 animate-spin" />}
             Enter
           </button>
         </div>
@@ -352,16 +378,6 @@ interface CustomerOption {
   phone: string;
 }
 
-const MOCK_CUSTOMERS: CustomerOption[] = [
-  { id: "1", name: "Eric",   email: "eric@odoo.com",   phone: "+91 9898989898" },
-  { id: "2", name: "Alex",   email: "alex@odoo.com",   phone: "+91 9898989898" },
-  { id: "3", name: "Sara",   email: "sara@odoo.com",   phone: "+91 9898989898" },
-  { id: "4", name: "Dowel",  email: "dowel@odoo.com",  phone: "+91 9898989898" },
-  { id: "5", name: "Sanjay", email: "sanjay@odoo.com", phone: "+91 9898989898" },
-  { id: "6", name: "Priya",  email: "priya@odoo.com",  phone: "+91 9898989898" },
-  { id: "7", name: "Raj",    email: "raj@odoo.com",    phone: "+91 9898989898" },
-];
-
 function CustomerSelectModal({
   onClose,
   onSelect,
@@ -372,8 +388,22 @@ function CustomerSelectModal({
   selectedCustomer: CustomerOption | null;
 }) {
   const [query, setQuery] = useState("");
+  const [customers, setCustomers] = useState<CustomerOption[]>([]);
 
-  const filtered = MOCK_CUSTOMERS.filter(c => {
+  useEffect(() => {
+    import("../../api/customers").then(({ fetchCustomers }) => {
+      fetchCustomers({ pageSize: 200 }).then(data => {
+        setCustomers(data.map(c => ({
+          id: c.publicId,
+          name: c.name,
+          email: c.email ?? "",
+          phone: c.phone ?? "",
+        })));
+      }).catch(() => {});
+    });
+  }, []);
+
+  const filtered = customers.filter(c => {
     const q = query.toLowerCase();
     return c.name.toLowerCase().includes(q) || c.email.toLowerCase().includes(q) || c.phone.includes(q);
   });
@@ -473,16 +503,19 @@ export default function POSOrder() {
   const [navOpen, setNavOpen] = useState(false);
   const [mobileTab, setMobileTab] = useState<MobileTab>("products");
 
+  // Active order created eagerly when first item is added
+  const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
+
   // Products & categories from API
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [productsLoading, setProductsLoading] = useState(true);
 
-  // Coupon state
+  // Coupon state — discountAmount comes from backend after successful apply
   const [couponOpen, setCouponOpen]     = useState(false);
   const [promoOpen,  setPromoOpen]      = useState(false);
   const [receiptOpen, setReceiptOpen]   = useState(false);
-  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; pct: number } | null>(null);
+  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discountAmount: number } | null>(null);
   // Table selector
   const [tableOpen, setTableOpen]       = useState(false);
   const [selectedTable, setSelectedTable] = useState<{ floor: string; floorName: string; table: string; tableNumber: string } | null>(null);
@@ -500,17 +533,11 @@ export default function POSOrder() {
   const [cashfreeSession, setCashfreeSession] = useState<{ sessionId: string; env: string; orderId: string } | null>(null);
   const navRef = useRef<HTMLDivElement>(null);
 
-  const VALID_COUPONS: Record<string, number> = { "SAVE20": 20, "OFFER30": 30, "FLAT10": 10 };
+  // Auto promos placeholder (future: fetch from /coupons/eligible/:orderId)
+  const AUTO_PROMOS: AutoPromo[] = [];
 
-  // Mock automated promotions that could apply
-  const AUTO_PROMOS: AutoPromo[] = [
-    { code: "AUTO30", label: "30% Discount",  pct: 30 },
-    { code: "AUTO25", label: "25% Discount",  pct: 25 },
-  ];
-
-  function applyCoupon(code: string) {
-    const pct = VALID_COUPONS[code];
-    if (pct) setAppliedCoupon({ code, pct });
+  function applyLocalCoupon(code: string, discountAmount: number) {
+    setAppliedCoupon({ code, discountAmount });
   }
 
   // Load enabled payment methods on mount
@@ -531,21 +558,25 @@ export default function POSOrder() {
     if (!selectedMethod || cart.length === 0) return;
     setProcessingPay(true);
     try {
-      // Step 1: Create a real order in the database
-      toast.loading("Creating order…", { id: "checkout" });
-      const order = await createOrder({ type: "TAKEAWAY", source: "POS" });
-
-      // Step 2: Add all cart items to the order
-      for (const item of cart) {
-        await addItemToOrder(order.publicId, item.id, item.qty);
+      // Step 1: Reuse existing order if already created, otherwise create one now
+      toast.loading("Preparing order…", { id: "checkout" });
+      let orderId = activeOrderId;
+      if (!orderId) {
+        const newOrder = await createOrder({ type: "TAKEAWAY", source: "POS" });
+        orderId = newOrder.publicId;
+        setActiveOrderId(orderId);
+        // Add all cart items (they weren't synced yet)
+        for (const item of cart) {
+          await addItemToOrder(orderId, item.id, item.qty);
+        }
       }
 
       toast.loading("Processing payment…", { id: "checkout" });
 
-      // Step 3: Create payment transaction
-      const txn = await createPaymentOrder(order.publicId, selectedMethod.publicId);
+      // Step 2: Create payment transaction
+      const txn = await createPaymentOrder(orderId, selectedMethod.publicId);
 
-      // Step 4: Process by payment type
+      // Step 3: Process by payment type
       if (selectedMethod.type === "CASH") {
         const received = parseFloat(cashReceived);
         if (!cashReceived || isNaN(received)) {
@@ -553,26 +584,30 @@ export default function POSOrder() {
           setProcessingPay(false);
           return;
         }
-        const result = await processCashPayment(order.publicId, txn.transactionId, received);
+        const result = await processCashPayment(orderId, txn.transactionId, received);
         setPaySuccess({ change: result.change });
         toast.success(`Payment successful! Change: ₹${result.change}`, { id: "checkout" });
         setCart([]);
+        setActiveOrderId(null);
+        setAppliedCoupon(null);
       } else if (selectedMethod.type === "CARD") {
         if (!cardRef.trim()) {
           toast.error("Enter card transaction reference");
           setProcessingPay(false);
           return;
         }
-        await processCardPayment(order.publicId, txn.transactionId, cardRef.trim());
+        await processCardPayment(orderId, txn.transactionId, cardRef.trim());
         setPaySuccess({});
         toast.success("Card payment successful!", { id: "checkout" });
         setCart([]);
+        setActiveOrderId(null);
+        setAppliedCoupon(null);
       } else if (selectedMethod.type === "CASHFREE") {
-        const cfResult = await initiateCashfreePayment(order.publicId, txn.transactionId);
+        const cfResult = await initiateCashfreePayment(orderId, txn.transactionId);
         setCashfreeSession({
           sessionId: cfResult.paymentSessionId,
           env: cfResult.environment,
-          orderId: order.publicId,
+          orderId: orderId,
         });
         toast.dismiss("checkout");
 
@@ -593,6 +628,8 @@ export default function POSOrder() {
             setPaySuccess({});
             setCashfreeSession(null);
             setCart([]);
+            setActiveOrderId(null);
+            setAppliedCoupon(null);
             toast.success("Cashfree payment successful!");
           }
         });
@@ -614,7 +651,7 @@ export default function POSOrder() {
   }
 
   function applyAutoPromo(promo: AutoPromo) {
-    setAppliedCoupon({ code: promo.code, pct: promo.pct });
+    setAppliedCoupon({ code: promo.code, discountAmount: 0 });
   }
 
   function handleTableSelect(floor: Floor | null, table: Table | null) {
@@ -662,7 +699,20 @@ export default function POSOrder() {
     p.name.toLowerCase().includes(search.toLowerCase())
   );
 
-  function addToCart(p: Product) {
+  async function addToCart(p: Product) {
+    // Eagerly create a real order on first item so coupon validation has an orderId
+    let orderId = activeOrderId;
+    if (!orderId) {
+      try {
+        const newOrder = await createOrder({ type: "TAKEAWAY", source: "POS" });
+        orderId = newOrder.publicId;
+        setActiveOrderId(orderId);
+      } catch {
+        toast.error("Failed to create order");
+        return;
+      }
+    }
+
     setCart(prev => {
       const ex = prev.find(i => i.id === p.publicId);
       if (ex) return prev.map(i => i.id === p.publicId ? { ...i, qty: i.qty + 1 } : i);
@@ -682,7 +732,7 @@ export default function POSOrder() {
 
   const subtotal = cart.reduce((s, i) => s + i.unitPrice * i.qty, 0);
   const tax = Math.round(subtotal * 0.05);
-  const orderDiscount = appliedCoupon ? Math.round(subtotal * appliedCoupon.pct / 100) : 0;
+  const orderDiscount = appliedCoupon ? appliedCoupon.discountAmount : 0;
   const total = subtotal + tax - orderDiscount;
 
   // ── Shared pane contents ──────────────────────────────────────
@@ -844,12 +894,12 @@ export default function POSOrder() {
           <div className="flex justify-between text-xs">
             <span className="text-emerald-600 font-medium flex items-center gap-1">
               <Tag className="w-3 h-3" />
-              Discount ({appliedCoupon.code} · {appliedCoupon.pct}%)
+              Discount ({appliedCoupon.code})
               <button onClick={() => setAppliedCoupon(null)} className="text-gray-400 hover:text-red-400 ml-1">
                 <X className="w-2.5 h-2.5" />
               </button>
             </span>
-            <span className="text-emerald-600 font-semibold">−₹{orderDiscount}({appliedCoupon.pct}%)</span>
+            <span className="text-emerald-600 font-semibold">−₹{orderDiscount.toFixed(2)}</span>
           </div>
         )}
         <div className="flex justify-between text-sm font-bold text-[#121B35] pt-1.5 border-t border-gray-200">
@@ -1157,7 +1207,8 @@ export default function POSOrder() {
       {couponOpen && (
         <CouponModal
           onClose={() => setCouponOpen(false)}
-          onApply={applyCoupon}
+          onApply={applyLocalCoupon}
+          orderId={activeOrderId ?? undefined}
         />
       )}
 

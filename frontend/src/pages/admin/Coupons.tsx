@@ -1,40 +1,22 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import {
   Plus, Trash2, User, Menu, MonitorSmartphone,
   ShoppingCart, ArrowUpFromLine, LayoutGrid, Tag,
   CreditCard, Ticket, CalendarRange, Users, ChefHat,
   BarChart3, LogOut, X, GripVertical, Check,
-  Percent, Hash,
+  Percent, Hash, Loader2, AlertCircle,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { ROUTES } from "../../routes/paths";
-
-type PromoType   = "Coupon" | "Promotion";
-type DiscountOn  = "%" | "Fixed";
-type ApplyOn     = "Product" | "Order";
-
-interface Promo {
-  id: string;
-  name: string;
-  promoType: PromoType;
-  active: boolean;
-  activeProgrammes: number;
-  // coupon-specific
-  couponCode: string;
-  discountOn: DiscountOn;
-  discountValue: number;
-  // promotion-specific
-  applyOn: ApplyOn;
-  minQty: number;
-  minOrderAmount: number;
-  productDescription: string;
-}
-
-const INIT: Promo[] = [
-  { id: "1", name: "Summer Sale",  promoType: "Coupon",    active: false, activeProgrammes: 2, couponCode: "Summer20", discountOn: "%",     discountValue: 20, applyOn: "Order",   minQty: 0, minOrderAmount: 0,   productDescription: "" },
-  { id: "2", name: "Promotions",   promoType: "Promotion", active: false, activeProgrammes: 2, couponCode: "",         discountOn: "%",     discountValue: 30, applyOn: "Product", minQty: 6, minOrderAmount: 0,   productDescription: "e.g Burger with others" },
-  { id: "3", name: "New user",     promoType: "Coupon",    active: false, activeProgrammes: 2, couponCode: "NEWUSER",  discountOn: "Fixed", discountValue: 50, applyOn: "Order",   minQty: 0, minOrderAmount: 0,   productDescription: "" },
-];
+import {
+  listPromotions,
+  createPromotion,
+  updatePromotion,
+  deletePromotion,
+  togglePromotion,
+  type Promotion,
+  type PromotionType,
+} from "../../api/promotions";
 
 const NAV_ITEMS = [
   { label: "Products",           icon: LayoutGrid,    to: ROUTES.PRODUCTS },
@@ -48,52 +30,83 @@ const NAV_ITEMS = [
   { label: "Log Out",            icon: LogOut,        to: ROUTES.LOGIN },
 ];
 
-// ── Promo Form Modal ─────────────────────────────────────────────
+type UIType     = "Coupon" | "Promotion";
+type DiscountOn = "%" | "Fixed";
+type ApplyOn    = "Product" | "Order";
+
+function mapTypeToUI(type: PromotionType): UIType {
+  return type === "COUPON_PERCENTAGE" || type === "COUPON_FIXED" ? "Coupon" : "Promotion";
+}
+
+function mapToApiType(uiType: UIType, discountOn: DiscountOn, applyOn: ApplyOn): PromotionType {
+  if (uiType === "Coupon") return discountOn === "%" ? "COUPON_PERCENTAGE" : "COUPON_FIXED";
+  return applyOn === "Order" ? "AUTO_ORDER_AMOUNT" : "AUTO_PRODUCT_QTY";
+}
+
 function PromoForm({
   promo,
   onClose,
   onSave,
 }: {
-  promo: Promo | null;
+  promo: Promotion | null;
   onClose: () => void;
-  onSave: (p: Promo) => void;
+  onSave: (p: Promotion) => void;
 }) {
-  const isCoupon = !promo || promo.promoType === "Coupon";
-  const [name,               setName]               = useState(promo?.name               ?? "");
-  const [promoType,          setPromoType]           = useState<PromoType>(promo?.promoType ?? "Coupon");
-  const [couponCode,         setCouponCode]          = useState(promo?.couponCode         ?? "");
-  const [discountOn,         setDiscountOn]          = useState<DiscountOn>(promo?.discountOn ?? "%");
-  const [discountValue,      setDiscountValue]       = useState(String(promo?.discountValue ?? ""));
-  const [applyOn,            setApplyOn]             = useState<ApplyOn>(promo?.applyOn     ?? "Product");
-  const [minQty,             setMinQty]              = useState(String(promo?.minQty        ?? ""));
-  const [minOrderAmount,     setMinOrderAmount]      = useState(String(promo?.minOrderAmount ?? ""));
-  const [productDescription, setProductDescription]  = useState(promo?.productDescription  ?? "");
-  const [active,             setActive]              = useState(promo?.active              ?? false);
+  const uiType0: UIType     = promo ? mapTypeToUI(promo.type) : "Coupon";
+  const discountOn0: DiscountOn = promo?.type === "COUPON_FIXED" || promo?.type === "AUTO_ORDER_AMOUNT" ? "Fixed" : "%";
+  const applyOn0: ApplyOn   = promo?.type === "AUTO_ORDER_AMOUNT" ? "Order" : "Product";
 
-  function handleSave() {
-    if (!name.trim()) return;
-    onSave({
-      id: promo?.id ?? crypto.randomUUID(),
-      name: name.trim(), promoType, active,
-      activeProgrammes: promo?.activeProgrammes ?? 0,
-      couponCode, discountOn,
-      discountValue: parseFloat(discountValue) || 0,
-      applyOn,
-      minQty: parseInt(minQty) || 0,
-      minOrderAmount: parseFloat(minOrderAmount) || 0,
-      productDescription,
-    });
-    onClose();
-  }
+  const [promoType,      setPromoType]      = useState<UIType>(uiType0);
+  const [name,           setName]           = useState(promo?.name               ?? "");
+  const [couponCode,     setCouponCode]     = useState(promo?.couponCode         ?? "");
+  const [discountOn,     setDiscountOn]     = useState<DiscountOn>(discountOn0);
+  const [discountValue,  setDiscountValue]  = useState(promo ? String(parseFloat(promo.discountValue)) : "");
+  const [applyOn,        setApplyOn]        = useState<ApplyOn>(applyOn0);
+  const [minQty,         setMinQty]         = useState(promo?.triggerQty ? String(promo.triggerQty) : "");
+  const [minOrderAmount, setMinOrderAmount] = useState(promo?.minOrderAmount ? String(parseFloat(promo.minOrderAmount)) : "");
+  const [active,         setActive]         = useState(promo?.status === "ACTIVE" ? true : false);
+  const [saving,         setSaving]         = useState(false);
+  const [error,          setError]          = useState("");
 
   const isPromotion = promoType === "Promotion";
   const isOrderBased = isPromotion && applyOn === "Order";
+
+  async function handleSave() {
+    if (!name.trim()) return;
+    setSaving(true);
+    setError("");
+    try {
+      const apiType = mapToApiType(promoType, discountOn, applyOn);
+      const payload = {
+        name: name.trim(),
+        type: apiType,
+        status: active ? "ACTIVE" as const : "INACTIVE" as const,
+        discountValue: parseFloat(discountValue) || 0,
+        couponCode: promoType === "Coupon" ? couponCode.trim() || undefined : undefined,
+        minOrderAmount: isOrderBased ? (parseFloat(minOrderAmount) || undefined) : undefined,
+        triggerQty: (!isOrderBased && isPromotion) ? (parseInt(minQty) || undefined) : undefined,
+      };
+
+      let saved: Promotion;
+      if (promo) {
+        const { type: _, ...patch } = payload as any;
+        saved = await updatePromotion(promo.publicId, patch);
+      } else {
+        saved = await createPromotion(payload);
+      }
+      onSave(saved);
+      onClose();
+    } catch (e: any) {
+      setError(e?.response?.data?.error?.message ?? "Failed to save");
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4"
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md border border-gray-200 overflow-hidden max-h-[90vh] overflow-y-auto">
-
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 sticky top-0 bg-white z-10">
           <h3 className="text-sm font-bold" style={{ color: "#121B35" }}>
             {promo ? "Edit" : "New"} {promoType === "Coupon" ? "Coupon" : "Automated Promotion"}
@@ -105,31 +118,29 @@ function PromoForm({
         </div>
 
         <div className="px-5 py-4 space-y-4">
-          {/* Row 1: Name + (Coupon Code if coupon) */}
+          {error && <p className="text-xs text-red-500">{error}</p>}
+
           <div className={`grid gap-3 ${promoType === "Coupon" ? "grid-cols-2" : "grid-cols-1"}`}>
             <div>
               <label className="text-xs font-semibold text-gray-500 mb-1 block">Promotion Name</label>
-              <input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Masala Tea"
+              <input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Summer Sale"
                 className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl outline-none focus:border-[#714B67] transition text-[#121B35] placeholder:text-gray-300" />
             </div>
             {promoType === "Coupon" && (
               <div>
-                <label className="text-xs font-semibold text-gray-500 mb-1 flex items-center justify-between">
-                  <span>Coupon Code</span>
-                  <span className="text-[10px] text-[#714B67] font-normal">Text field, create any coupon</span>
-                </label>
-                <input value={couponCode} onChange={e => setCouponCode(e.target.value)} placeholder="Summer20"
+                <label className="text-xs font-semibold text-gray-500 mb-1 block">Coupon Code</label>
+                <input value={couponCode} onChange={e => setCouponCode(e.target.value)} placeholder="SUMMER20"
                   className="w-full px-3 py-2 text-sm border border-[#714B67]/40 bg-[#714B67]/5 rounded-xl outline-none focus:border-[#714B67] transition text-[#121B35] placeholder:text-gray-300" />
               </div>
             )}
           </div>
 
-          {/* Row 2: Type + Discount */}
           <div className="grid grid-cols-3 gap-3">
             <div>
               <label className="text-xs font-semibold text-gray-500 mb-1 block">Type</label>
-              <select value={promoType} onChange={e => setPromoType(e.target.value as PromoType)}
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl outline-none focus:border-[#714B67] bg-white text-[#121B35]">
+              <select value={promoType} onChange={e => setPromoType(e.target.value as UIType)}
+                disabled={!!promo}
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl outline-none focus:border-[#714B67] bg-white text-[#121B35] disabled:opacity-60">
                 <option>Coupon</option>
                 <option>Promotion</option>
               </select>
@@ -167,85 +178,51 @@ function PromoForm({
                     <option>Order</option>
                   </select>
                 </div>
-                {/* Min Qty (product-based) or Min Order Amount (order-based) */}
                 <div>
                   <label className="text-xs font-semibold text-gray-500 mb-1 block">
                     {isOrderBased ? "Order ≥ ₹" : "Min Qty"}
                   </label>
-                  <input
-                    value={isOrderBased ? minOrderAmount : minQty}
+                  <input value={isOrderBased ? minOrderAmount : minQty}
                     onChange={e => isOrderBased ? setMinOrderAmount(e.target.value) : setMinQty(e.target.value)}
-                    placeholder={isOrderBased ? "620" : "6"} type="number"
+                    placeholder={isOrderBased ? "500" : "3"} type="number"
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl outline-none focus:border-[#714B67] transition text-[#121B35]" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 mb-1 block">Discount %</label>
+                  <input value={discountValue} onChange={e => setDiscountValue(e.target.value)}
+                    placeholder="30" type="number"
                     className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl outline-none focus:border-[#714B67] transition text-[#121B35]" />
                 </div>
               </>
             )}
           </div>
 
-          {/* Promotion: Discount */}
-          {isPromotion && (
-            <div className="grid grid-cols-3 gap-3">
-              <div className="col-span-1">
-                <label className="text-xs font-semibold text-gray-500 mb-1 block">Reduce Discount</label>
-                <div className="flex items-center gap-2">
-                  <input value={discountValue} onChange={e => setDiscountValue(e.target.value)}
-                    placeholder="30" type="number"
-                    className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-xl outline-none focus:border-[#714B67] transition text-[#121B35]" />
-                  <select value={discountOn} onChange={e => setDiscountOn(e.target.value as DiscountOn)}
-                    className="px-2 py-2 text-sm border border-gray-200 rounded-xl outline-none focus:border-[#714B67] bg-white text-[#121B35]">
-                    <option value="%">%</option>
-                    <option value="Fixed">₹</option>
-                  </select>
-                </div>
-              </div>
-              <div className="col-span-2">
-                <label className="text-xs font-semibold text-gray-500 mb-1 block">Apply On</label>
-                <div className="flex gap-2">
-                  {(["Product","Order"] as ApplyOn[]).map(opt => (
-                    <label key={opt} className="flex items-center gap-1.5 cursor-pointer">
-                      <input type="radio" checked={applyOn === opt} onChange={() => setApplyOn(opt)}
-                        className="accent-[#714B67]" />
-                      <span className="text-xs text-gray-600">{opt}</span>
-                    </label>
-                  ))}
-                </div>
-                <p className="text-[10px] text-gray-400 mt-1">Both should apply on whole order</p>
-              </div>
-            </div>
-          )}
-
-          {/* Coupon type selector (for Coupon form) */}
           {promoType === "Coupon" && (
             <div>
               <label className="text-xs font-semibold text-gray-500 mb-1.5 block">Coupon Promotion</label>
               <div className="grid grid-cols-2 gap-2">
-                <div className="p-2.5 border-2 border-[#714B67] bg-[#714B67]/5 rounded-xl text-center cursor-pointer">
+                <div onClick={() => setDiscountOn("%")}
+                  className={`p-2.5 border-2 rounded-xl text-center cursor-pointer transition
+                    ${discountOn === "%" ? "border-[#714B67] bg-[#714B67]/5" : "border-gray-200 hover:border-[#714B67]/40"}`}>
                   <Percent className="w-4 h-4 text-[#714B67] mx-auto mb-1" />
                   <p className="text-xs font-semibold text-[#714B67]">% Discount</p>
                 </div>
-                <div className="p-2.5 border border-gray-200 rounded-xl text-center cursor-pointer hover:border-[#714B67]/40">
-                  <Hash className="w-4 h-4 text-gray-400 mx-auto mb-1" />
-                  <p className="text-xs text-gray-500">Fixed Amount</p>
+                <div onClick={() => setDiscountOn("Fixed")}
+                  className={`p-2.5 border-2 rounded-xl text-center cursor-pointer transition
+                    ${discountOn === "Fixed" ? "border-[#714B67] bg-[#714B67]/5" : "border-gray-200 hover:border-[#714B67]/40"}`}>
+                  <Hash className="w-4 h-4 text-[#714B67] mx-auto mb-1" />
+                  <p className="text-xs font-semibold text-[#714B67]">Fixed Amount</p>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Product Description */}
-          <div>
-            <label className="text-xs font-semibold text-gray-500 mb-1 block">Product Description</label>
-            <textarea value={productDescription} onChange={e => setProductDescription(e.target.value)}
-              placeholder="e.g Burger with others" rows={2}
-              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl outline-none focus:border-[#714B67] transition text-[#121B35] placeholder:text-gray-300 resize-none" />
-          </div>
-
-          {/* Activate */}
           <div className="flex items-center gap-3">
             <label className="text-xs font-semibold text-gray-500">Activate</label>
             <button onClick={() => setActive(a => !a)}
-              className={`relative inline-flex items-center rounded-full transition-colors shrink-0`}
+              className="relative inline-flex items-center rounded-full transition-colors shrink-0"
               style={{ width: 34, height: 18, backgroundColor: active ? "#714B67" : "#d1d5db" }}>
-              <span className={`absolute w-3.5 h-3.5 bg-white rounded-full shadow transition-all`}
+              <span className="absolute w-3.5 h-3.5 bg-white rounded-full shadow transition-all"
                 style={{ left: active ? 16 : 2 }} />
             </button>
           </div>
@@ -254,9 +231,10 @@ function PromoForm({
         <div className="grid grid-cols-2 border-t border-gray-100 divide-x divide-gray-100 sticky bottom-0 bg-white">
           <button onClick={onClose}
             className="py-3 text-sm font-semibold text-gray-500 hover:bg-gray-50 transition">Discard</button>
-          <button onClick={handleSave}
-            className="py-3 text-sm font-semibold text-[#714B67] hover:bg-[#714B67]/5 transition flex items-center justify-center gap-1.5">
-            <Check className="w-3.5 h-3.5" />Save
+          <button onClick={handleSave} disabled={saving}
+            className="py-3 text-sm font-semibold text-[#714B67] hover:bg-[#714B67]/5 transition flex items-center justify-center gap-1.5 disabled:opacity-50">
+            {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+            Save
           </button>
         </div>
       </div>
@@ -264,13 +242,29 @@ function PromoForm({
   );
 }
 
-// ── Main Page ────────────────────────────────────────────────────
 export default function Coupons() {
-  const [promos,  setPromos]  = useState<Promo[]>(INIT);
+  const [promos,  setPromos]  = useState<Promotion[]>([]);
   const [navOpen, setNavOpen] = useState(false);
-  const [editing, setEditing] = useState<Promo | null | "new">(null);
+  const [editing, setEditing] = useState<Promotion | null | "new">(null);
   const [search,  setSearch]  = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error,   setError]   = useState<string | null>(null);
   const navRef = useRef<HTMLDivElement>(null);
+
+  const loadPromos = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await listPromotions({ pageSize: 200 });
+      setPromos(data);
+    } catch {
+      setError("Failed to load promotions");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { loadPromos(); }, [loadPromos]);
 
   useEffect(() => {
     const h = (e: MouseEvent) => {
@@ -284,22 +278,32 @@ export default function Coupons() {
     p.name.toLowerCase().includes(search.toLowerCase())
   );
 
-  function toggleActive(id: string) {
-    setPromos(prev => prev.map(p => p.id === id ? { ...p, active: !p.active } : p));
+  async function handleToggle(promo: Promotion) {
+    try {
+      const updated = await togglePromotion(promo.publicId);
+      setPromos(prev => prev.map(p => p.publicId === updated.publicId ? updated : p));
+    } catch { /* ignore */ }
   }
 
-  function handleSave(p: Promo) {
-    setPromos(prev => prev.find(x => x.id === p.id) ? prev.map(x => x.id === p.id ? p : x) : [...prev, p]);
+  async function handleDelete(publicId: string) {
+    try {
+      await deletePromotion(publicId);
+      setPromos(prev => prev.filter(p => p.publicId !== publicId));
+    } catch { /* ignore */ }
+  }
+
+  function handleSave(saved: Promotion) {
+    setPromos(prev => {
+      const exists = prev.find(p => p.publicId === saved.publicId);
+      return exists ? prev.map(p => p.publicId === saved.publicId ? saved : p) : [...prev, saved];
+    });
   }
 
   return (
     <div className="min-h-screen flex flex-col bg-[#F5F5F7]">
-
-      {/* ── TOP BAR ── */}
       <header className="h-12 bg-white border-b border-gray-200 flex items-center gap-2 sm:gap-3 px-3 sm:px-4 shrink-0 z-10">
         <div className="bg-[#714B67] text-white text-xs font-bold px-2.5 py-1 rounded-lg shrink-0">Logo</div>
         <span className="text-sm font-bold" style={{ color: "#121B35" }}>Coupon & Promotion</span>
-
         <div className="flex items-center gap-0.5 ml-auto">
           {[
             { icon: ShoppingCart,      to: ROUTES.ORDERS,      title: "Orders" },
@@ -334,78 +338,89 @@ export default function Coupons() {
         </div>
       </header>
 
-      {/* ── CONTENT ── */}
       <div className="flex-1 p-3 sm:p-6">
         <div className="w-full max-w-4xl mx-auto bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-
-          {/* Toolbar */}
           <div className="flex items-center gap-2 px-4 sm:px-5 py-3 border-b border-gray-100 flex-wrap">
             <button onClick={() => setEditing("new")}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-[#714B67]/10 hover:bg-[#714B67]/20 text-[#714B67] text-xs font-semibold rounded-lg transition shrink-0">
               <Plus className="w-3.5 h-3.5" />New
             </button>
             <div className="relative flex-1 min-w-[140px]">
-              <input value={search} onChange={e => setSearch(e.target.value)}
-                placeholder="Search promotions…"
+              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search promotions…"
                 className="w-full pl-3 pr-8 py-1.5 text-sm bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-[#714B67] focus:bg-white transition placeholder:text-gray-300 text-[#121B35]" />
             </div>
           </div>
 
-          {/* Table */}
           <div className="overflow-x-auto">
             <table className="w-full min-w-[500px]">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-100">
                   <th className="w-8 pl-3" />
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Promotions Name</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Name</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Type</th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-400 uppercase tracking-wider">Active programmes</th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-400 uppercase tracking-wider">Activate</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Code</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Discount</th>
+                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-400 uppercase tracking-wider">Active</th>
                   <th className="w-12" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {filtered.length === 0 ? (
-                  <tr><td colSpan={6} className="px-4 py-12 text-center text-gray-400 text-sm">No promotions found</td></tr>
+                {loading ? (
+                  <tr><td colSpan={7} className="px-4 py-12 text-center text-gray-400">
+                    <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2" />Loading…
+                  </td></tr>
+                ) : error ? (
+                  <tr><td colSpan={7} className="px-4 py-12 text-center text-red-400">
+                    <AlertCircle className="w-5 h-5 mx-auto mb-2" />{error}
+                  </td></tr>
+                ) : filtered.length === 0 ? (
+                  <tr><td colSpan={7} className="px-4 py-12 text-center text-gray-400 text-sm">No promotions found</td></tr>
                 ) : (
-                  filtered.map(p => (
-                    <tr key={p.id} className="hover:bg-gray-50/70 transition group">
-                      <td className="pl-3 pr-1 py-3.5">
-                        <GripVertical className="w-3.5 h-3.5 text-gray-300 group-hover:text-gray-400 cursor-grab" />
-                      </td>
-                      <td className="px-4 py-3.5">
-                        <button onClick={() => setEditing(p)}
-                          className="text-sm font-medium text-[#714B67] hover:underline">
-                          {p.name}
-                        </button>
-                      </td>
-                      <td className="px-4 py-3.5">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold
-                          ${p.promoType === "Coupon"
-                            ? "bg-blue-100 text-blue-700"
-                            : "bg-purple-100 text-purple-700"}`}>
-                          {p.promoType === "Coupon" ? "Coupon" : "Automated Promo"}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3.5 text-center text-sm text-gray-500">
-                        {p.activeProgrammes}
-                      </td>
-                      <td className="px-4 py-3.5 text-center">
-                        <button onClick={() => toggleActive(p.id)}
-                          className="relative inline-flex items-center rounded-full transition-colors"
-                          style={{ width: 34, height: 18, backgroundColor: p.active ? "#714B67" : "#d1d5db" }}>
-                          <span className="absolute w-3.5 h-3.5 bg-white rounded-full shadow transition-all"
-                            style={{ left: p.active ? 16 : 2 }} />
-                        </button>
-                      </td>
-                      <td className="pr-3 py-3.5 text-right">
-                        <button onClick={() => setPromos(prev => prev.filter(x => x.id !== p.id))}
-                          className="p-1.5 text-gray-300 hover:text-red-400 hover:bg-red-50 rounded-lg transition">
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))
+                  filtered.map(p => {
+                    const isActive = p.status === "ACTIVE";
+                    const isCoupon = p.type === "COUPON_PERCENTAGE" || p.type === "COUPON_FIXED";
+                    return (
+                      <tr key={p.publicId} className="hover:bg-gray-50/70 transition group">
+                        <td className="pl-3 pr-1 py-3.5">
+                          <GripVertical className="w-3.5 h-3.5 text-gray-300 group-hover:text-gray-400 cursor-grab" />
+                        </td>
+                        <td className="px-4 py-3.5">
+                          <button onClick={() => setEditing(p)}
+                            className="text-sm font-medium text-[#714B67] hover:underline">
+                            {p.name}
+                          </button>
+                        </td>
+                        <td className="px-4 py-3.5">
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold
+                            ${isCoupon ? "bg-blue-100 text-blue-700" : "bg-purple-100 text-purple-700"}`}>
+                            {isCoupon ? "Coupon" : "Auto Promo"}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3.5 text-sm text-gray-500 font-mono">
+                          {p.couponCode ?? "—"}
+                        </td>
+                        <td className="px-4 py-3.5 text-sm font-semibold text-gray-700">
+                          {p.type === "COUPON_PERCENTAGE" || p.type === "AUTO_PRODUCT_QTY" || p.type === "AUTO_ORDER_AMOUNT"
+                            ? `${parseFloat(p.discountValue)}%`
+                            : `₹${parseFloat(p.discountValue)}`}
+                        </td>
+                        <td className="px-4 py-3.5 text-center">
+                          <button onClick={() => handleToggle(p)}
+                            className="relative inline-flex items-center rounded-full transition-colors"
+                            style={{ width: 34, height: 18, backgroundColor: isActive ? "#714B67" : "#d1d5db" }}>
+                            <span className="absolute w-3.5 h-3.5 bg-white rounded-full shadow transition-all"
+                              style={{ left: isActive ? 16 : 2 }} />
+                          </button>
+                        </td>
+                        <td className="pr-3 py-3.5 text-right">
+                          <button onClick={() => handleDelete(p.publicId)}
+                            className="p-1.5 text-gray-300 hover:text-red-400 hover:bg-red-50 rounded-lg transition">
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>

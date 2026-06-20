@@ -27,6 +27,7 @@ import { paymentMethodsRouter } from "./routes/payment-methods.route.ts";
 import { paymentsRouter }       from "./routes/payments.route.ts";
 import { devRouter }            from "./routes/dev.route.ts";
 import { customerAuthRouter } from "./routes/customer-auth.route.ts";
+// Note: customerAuthRouter is also mounted below at /api
 import { promotionsRouter } from "./routes/promotions.ts";
 import { selfOrderRouter }  from "./modules/self-order/index.ts";
 import { displayRouter }    from "./modules/customer-display/index.ts";
@@ -69,6 +70,8 @@ app.route("/",                         paymentsRouter);
 app.route("/",                         devRouter);
 app.route("/api/v1/self-order",        selfOrderRouter);
 app.route("/api/v1/customer-display",  displayRouter);
+app.route("/api",                      customerAuthRouter);
+app.route("/api",                      promotionsRouter);
 
 // ─── OpenAPI + Swagger UI ─────────────────────────────────────────────────────
 registerDocs(app);
