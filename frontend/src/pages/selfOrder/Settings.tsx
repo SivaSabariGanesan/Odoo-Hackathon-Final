@@ -152,13 +152,54 @@ export default function SelfOrderSettings() {
                 </button>
               </div>
 
-              {/* Online ordering sub-note */}
+              {/* Online ordering sub-note + action links */}
               {mode === "online" && (
-                <div className="mx-4 mb-4 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-start gap-2">
-                  <span className="text-amber-500 text-sm mt-0.5">ℹ️</span>
-                  <p className="text-xs text-amber-700">
-                    Payment method is set to <strong>Pay at counter</strong> by default and cannot be changed in this version.
-                  </p>
+                <div className="px-4 pb-4 space-y-3">
+                  {/* Preview + Download links */}
+                  <div className="flex flex-col gap-1">
+                    <Link to={ROUTES.SPLASH}
+                      className="flex items-center gap-2 text-sm text-[#714B67] hover:underline font-medium">
+                      <Eye className="w-3.5 h-3.5" />
+                      Preview Webpage →
+                    </Link>
+                    <Link to={ROUTES.QR_GENERATOR}
+                      className="flex items-center gap-2 text-sm text-[#714B67] hover:underline font-medium">
+                      <QrCode className="w-3.5 h-3.5" />
+                      Download QR Code →
+                    </Link>
+                  </div>
+
+                  {/* Payment Method — read-only */}
+                  <div className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Payment Method</p>
+                    <label className="flex items-center gap-3 cursor-not-allowed opacity-70">
+                      <input type="checkbox" checked readOnly
+                        className="accent-[#714B67] w-3.5 h-3.5 cursor-not-allowed" />
+                      <span className="text-sm text-gray-600 font-medium">Pay at counter</span>
+                      <span className="ml-auto text-[10px] text-gray-400 bg-gray-200 px-2 py-0.5 rounded-full">
+                        Default · Read only
+                      </span>
+                    </label>
+                    <p className="text-[10px] text-gray-400 mt-2 ml-6">
+                      No online payment gateway in this version.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* QR Menu links */}
+              {mode === "qrmenu" && (
+                <div className="px-4 pb-4 flex flex-col gap-1">
+                  <Link to={ROUTES.SPLASH}
+                    className="flex items-center gap-2 text-sm text-[#714B67] hover:underline font-medium">
+                    <Eye className="w-3.5 h-3.5" />
+                    Preview Webpage →
+                  </Link>
+                  <Link to={ROUTES.QR_GENERATOR}
+                    className="flex items-center gap-2 text-sm text-[#714B67] hover:underline font-medium">
+                    <QrCode className="w-3.5 h-3.5" />
+                    Download QR Code →
+                  </Link>
                 </div>
               )}
             </div>
