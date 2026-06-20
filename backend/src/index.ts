@@ -6,6 +6,8 @@ import { fileURLToPath } from "url";
 
 import { registerDocs } from "./lib/swagger.ts";
 import { healthRouter } from "./routes/health.ts";
+import { selfOrderRouter } from "./modules/self-order/index.ts";
+import { displayRouter } from "./modules/customer-display/index.ts";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 config({ path: resolve(__dirname, "../../.env"), override: true });
@@ -18,6 +20,8 @@ app.get("/", (c) =>
 );
 
 app.route("/", healthRouter);
+app.route("/api/v1/self-order", selfOrderRouter);
+app.route("/api/v1/customer-display", displayRouter);
 
 // ─── Docs (must come after routes) ───────────────────────────────────────────
 registerDocs(app);
