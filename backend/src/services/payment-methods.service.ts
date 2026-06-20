@@ -63,19 +63,26 @@ export async function createPaymentMethod(
   input: CreatePaymentMethodInput,
   actorId: bigint,
 ) {
+  console.log('[PaymentMethod] Creating with input:', input);
+  console.log('[PaymentMethod] Actor ID:', actorId);
+  
   // Duplicate name check
   const existing = await db.query.paymentMethods.findFirst({
     where: (pm, { eq }) => eq(pm.name, input.name),
     columns: { id: true },
   });
   if (existing) {
+    console.log('[PaymentMethod] Duplicate name found:', input.name);
     throw Object.assign(new Error("Payment method name already exists"), { status: 409 });
   }
 
+  console.log('[PaymentMethod] Inserting into database...');
   const [row] = await db
     .insert(paymentMethods)
     .values({ name: input.name, type: input.type, isEnabled: input.isEnabled })
     .returning();
+
+  console.log('[PaymentMethod] Inserted row:', row);
 
   await writeAudit({
     actorId,
@@ -84,6 +91,8 @@ export async function createPaymentMethod(
     newValue:    { name: row.name, type: row.type, isEnabled: row.isEnabled },
     description: `Payment method "${row.name}" created`,
   });
+
+  console.log('[PaymentMethod] Audit log written');
 
   return row;
 }

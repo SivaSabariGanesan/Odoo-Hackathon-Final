@@ -13,7 +13,7 @@ import { err } from "../utils/response.ts";
 export const authenticate: MiddlewareHandler = async (c, next) => {
   const authHeader = c.req.header("Authorization");
   if (!authHeader?.startsWith("Bearer ")) {
-    return err(c, "Missing or invalid Authorization header", 401);
+    return err(c, 401, "UNAUTHORIZED", "Missing or invalid Authorization header");
   }
 
   const token = authHeader.slice(7);
@@ -22,7 +22,7 @@ export const authenticate: MiddlewareHandler = async (c, next) => {
   try {
     payload = verifyAccessToken(token);
   } catch {
-    return err(c, "Invalid or expired access token", 401);
+    return err(c, 401, "UNAUTHORIZED", "Invalid or expired access token");
   }
 
   // Load fresh user from DB — catch role/status changes since token was issued
@@ -39,9 +39,9 @@ export const authenticate: MiddlewareHandler = async (c, next) => {
     .where(eq(staffAccounts.publicId, payload.sub))
     .limit(1);
 
-  if (!user) return err(c, "Account not found", 401);
-  if (user.status === "ARCHIVED") return err(c, "Account is archived", 403);
-  if (user.status === "INACTIVE") return err(c, "Account is inactive", 403);
+  if (!user) return err(c, 401, "UNAUTHORIZED", "Account not found");
+  if (user.status === "ARCHIVED") return err(c, 403, "FORBIDDEN", "Account is archived");
+  if (user.status === "INACTIVE") return err(c, 403, "FORBIDDEN", "Account is inactive");
 
   c.set("user", user);
   await next();

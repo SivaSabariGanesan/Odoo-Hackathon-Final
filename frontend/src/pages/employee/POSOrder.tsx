@@ -1,58 +1,45 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import {
   Search, X, Plus, Minus, User, Tag, Send,
   CreditCard, Smartphone, Banknote, LayoutGrid,
   LogOut, Users, Ticket, CalendarRange, ChefHat,
   BarChart3, Menu, MonitorSmartphone, ShoppingCart,
-  ArrowUpFromLine, Delete, CheckCircle,
+  ArrowUpFromLine, CheckCircle, Loader2,
+  AlertCircle, BadgeCheck,
 } from "lucide-react";
 import { Link } from "react-router-dom";
+import { toast } from "sonner";
 import { ROUTES } from "../../routes/paths";
+import {
+  listPaymentMethods,
+  createPaymentOrder,
+  processCashPayment,
+  processCardPayment,
+  initiateCashfreePayment,
+  type PaymentMethod,
+  type PaymentMethodType,
+} from "../../api/payments";
+import { listCategories, listProducts, type Category, type Product } from "../../api/products";
+import { createOrder, addItemToOrder } from "../../api/orders";
 
 interface CartItem {
-  id: number; name: string; unitPrice: number; qty: number;
-  productDiscount?: number; // percentage, e.g. 30
+  id: string; name: string; unitPrice: number; qty: number;
+  productDiscount?: number;
 }
-interface Category  { id: number; name: string }
-interface Product   { id: number; name: string; price: number; categoryId: number; dot: string }
-
-const CATEGORIES: Category[] = [
-  { id: 1, name: "Chaat" },
-  { id: 2, name: "Desert" },
-  { id: 3, name: "Meal" },
-  { id: 4, name: "Beverages" },
-];
-
-const PRODUCTS: Product[] = [
-  { id: 1,  name: "Masala Tea", price: 540, categoryId: 1, dot: "#4caf50" },
-  { id: 2,  name: "Coffee",     price: 540, categoryId: 1, dot: "#4caf50" },
-  { id: 3,  name: "Lassi",      price: 540, categoryId: 1, dot: "#4caf50" },
-  { id: 4,  name: "Masala Tea", price: 540, categoryId: 2, dot: "#4caf50" },
-  { id: 5,  name: "Coffee",     price: 540, categoryId: 2, dot: "#4caf50" },
-  { id: 6,  name: "Lassi",      price: 540, categoryId: 2, dot: "#ef5350" },
-  { id: 7,  name: "Masala Tea", price: 540, categoryId: 3, dot: "#4caf50" },
-  { id: 8,  name: "Coffee",     price: 540, categoryId: 3, dot: "#4caf50" },
-  { id: 9,  name: "Lassi",      price: 540, categoryId: 3, dot: "#ef5350" },
-  { id: 10, name: "Masala Tea", price: 540, categoryId: 4, dot: "#4caf50" },
-  { id: 11, name: "Coffee",     price: 540, categoryId: 4, dot: "#ef5350" },
-  { id: 12, name: "Lassi",      price: 540, categoryId: 4, dot: "#4caf50" },
-];
 
 const NAV_ITEMS = [
-  { label: "Products",           icon: LayoutGrid,    to: ROUTES.PRODUCTS },
-  { label: "Category",           icon: Tag,           to: ROUTES.CATEGORIES },
-  { label: "Payment Method",     icon: CreditCard,    to: ROUTES.PAYMENTS },
-  { label: "Coupon & Promotion", icon: Ticket,        to: ROUTES.COUPONS },
-  { label: "Booking",            icon: CalendarRange, to: ROUTES.FLOOR_TABLES },
-  { label: "User/Employee",      icon: Users,         to: ROUTES.EMPLOYEES },
-  { label: "KDS",                icon: ChefHat,       to: ROUTES.KDS },
-  { label: "Reports",            icon: BarChart3,     to: ROUTES.REPORTS },
-  { label: "Log Out",            icon: LogOut,        to: ROUTES.LOGIN },
+  { label: "Products", icon: LayoutGrid, to: ROUTES.PRODUCTS },
+  { label: "Category", icon: Tag, to: ROUTES.CATEGORIES },
+  { label: "Payment Method", icon: CreditCard, to: ROUTES.PAYMENTS },
+  { label: "Coupon & Promotion", icon: Ticket, to: ROUTES.COUPONS },
+  { label: "Booking", icon: CalendarRange, to: ROUTES.FLOOR_TABLES },
+  { label: "User/Employee", icon: Users, to: ROUTES.EMPLOYEES },
+  { label: "KDS", icon: ChefHat, to: ROUTES.KDS },
+  { label: "Reports", icon: BarChart3, to: ROUTES.REPORTS },
+  { label: "Log Out", icon: LogOut, to: ROUTES.LOGIN },
 ];
 
-type PayMethod  = "cash" | "upi" | "card";
-type NumpadMode = "price" | "disc" | "qty";
-type MobileTab  = "products" | "cart" | "payment";
+type MobileTab = "products" | "cart" | "payment";
 
 // ── Coupon Popup ────────────────────────────────────────────────
 function CouponModal({
@@ -118,17 +105,33 @@ function CouponModal({
 }
 
 export default function POSOrder() {
-  const [activeCat, setActiveCat]       = useState<number | null>(null);
-  const [search, setSearch]             = useState("");
-  const [cart, setCart]                 = useState<CartItem[]>([]);
-  const [selectedItem, setSelectedItem] = useState<number | null>(null);
-  const [payMethod, setPayMethod]       = useState<PayMethod>("cash");
-  const [numpadMode, setNumpadMode]     = useState<NumpadMode>("qty");
-  const [navOpen, setNavOpen]           = useState(false);
-  const [mobileTab, setMobileTab]       = useState<MobileTab>("products");
+  const [activeCat, setActiveCat] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [selectedItem, setSelectedItem] = useState<string | null>(null);
+  const [navOpen, setNavOpen] = useState(false);
+  const [mobileTab, setMobileTab] = useState<MobileTab>("products");
+
+  // Products & categories from API
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [productsLoading, setProductsLoading] = useState(true);
+
   // Coupon state
-  const [couponOpen, setCouponOpen]     = useState(false);
+  const [couponOpen, setCouponOpen] = useState(false);
   const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; pct: number } | null>(null);
+
+  // Payment API state
+  const [payMethods, setPayMethods] = useState<PaymentMethod[]>([]);
+  const [payMethodsLoading, setPayMethodsLoading] = useState(true);
+  const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null);
+  const [cashfreeEnabled, setCashfreeEnabled] = useState(false);
+  const [processingPay, setProcessingPay] = useState(false);
+  const [cashReceived, setCashReceived] = useState("");
+  const [cardRef, setCardRef] = useState("");
+  const [paySuccess, setPaySuccess] = useState<{ change?: number } | null>(null);
+  const [cashfreeSession, setCashfreeSession] = useState<{ sessionId: string; env: string; orderId: string } | null>(null);
+
   const navRef = useRef<HTMLDivElement>(null);
 
   const VALID_COUPONS: Record<string, number> = { "SAVE20": 20, "OFFER30": 30, "FLAT10": 10 };
@@ -136,6 +139,106 @@ export default function POSOrder() {
   function applyCoupon(code: string) {
     const pct = VALID_COUPONS[code];
     if (pct) setAppliedCoupon({ code, pct });
+  }
+
+  // Load enabled payment methods on mount
+  const loadPayMethods = useCallback(async () => {
+    try {
+      const methods = await listPaymentMethods({ isEnabled: true });
+      setPayMethods(methods);
+      if (methods.length > 0) setSelectedMethod(methods[0]);
+    } catch {
+      toast.error("Failed to load payment methods");
+    } finally {
+      setPayMethodsLoading(false);
+    }
+  }, []);
+
+  // Handle checkout — create real order from cart, then process payment
+  async function handleValidate() {
+    if (!selectedMethod || cart.length === 0) return;
+    setProcessingPay(true);
+    try {
+      // Step 1: Create a real order in the database
+      toast.loading("Creating order…", { id: "checkout" });
+      const order = await createOrder({ type: "TAKEAWAY", source: "POS" });
+
+      // Step 2: Add all cart items to the order
+      for (const item of cart) {
+        await addItemToOrder(order.publicId, item.id, item.qty);
+      }
+
+      toast.loading("Processing payment…", { id: "checkout" });
+
+      // Step 3: Create payment transaction
+      const txn = await createPaymentOrder(order.publicId, selectedMethod.publicId);
+
+      // Step 4: Process by payment type
+      if (selectedMethod.type === "CASH") {
+        const received = parseFloat(cashReceived);
+        if (!cashReceived || isNaN(received)) {
+          toast.error("Enter cash received amount");
+          setProcessingPay(false);
+          return;
+        }
+        const result = await processCashPayment(order.publicId, txn.transactionId, received);
+        setPaySuccess({ change: result.change });
+        toast.success(`Payment successful! Change: ₹${result.change}`, { id: "checkout" });
+        setCart([]);
+      } else if (selectedMethod.type === "CARD") {
+        if (!cardRef.trim()) {
+          toast.error("Enter card transaction reference");
+          setProcessingPay(false);
+          return;
+        }
+        await processCardPayment(order.publicId, txn.transactionId, cardRef.trim());
+        setPaySuccess({});
+        toast.success("Card payment successful!", { id: "checkout" });
+        setCart([]);
+      } else if (selectedMethod.type === "CASHFREE") {
+        const cfResult = await initiateCashfreePayment(order.publicId, txn.transactionId);
+        setCashfreeSession({
+          sessionId: cfResult.paymentSessionId,
+          env: cfResult.environment,
+          orderId: order.publicId,
+        });
+        toast.dismiss("checkout");
+
+        // Open Cashfree payment window
+        const { load } = await import("@cashfreepayments/cashfree-js");
+        const cashfree = await load({
+          mode: cfResult.environment === "PRODUCTION" ? "production" : "sandbox",
+        });
+
+        cashfree.checkout({
+          paymentSessionId: cfResult.paymentSessionId,
+          redirectTarget: "_modal",
+        }).then((result: any) => {
+          if (result.error) {
+            toast.error(result.error.message ?? "Payment failed");
+            setCashfreeSession(null);
+          } else if (result.paymentDetails) {
+            setPaySuccess({});
+            setCashfreeSession(null);
+            setCart([]);
+            toast.success("Cashfree payment successful!");
+          }
+        });
+      }
+    } catch (e: any) {
+      const msg = e?.response?.data?.error?.message ?? "Payment failed";
+      toast.error(msg, { id: "checkout" });
+    } finally {
+      setProcessingPay(false);
+    }
+  }
+
+  // Icon per payment type
+  function MethodIcon({ type, className }: { type: PaymentMethodType; className?: string }) {
+    if (type === "CASH") return <Banknote className={className} />;
+    if (type === "CARD") return <CreditCard className={className} />;
+    if (type === "CASHFREE") return <Smartphone className={className} />;
+    return <CreditCard className={className} />;
   }
 
   useEffect(() => {
@@ -146,41 +249,53 @@ export default function POSOrder() {
     return () => document.removeEventListener("mousedown", h);
   }, []);
 
-  const filtered = PRODUCTS.filter(p =>
-    (activeCat == null || p.categoryId === activeCat) &&
+  useEffect(() => { loadPayMethods(); }, [loadPayMethods]);
+
+  useEffect(() => {
+    async function loadProductData() {
+      try {
+        const [cats, prods] = await Promise.all([
+          listCategories(),
+          listProducts({ isAvailable: true }),
+        ]);
+        setCategories(cats);
+        setProducts(prods);
+      } catch {
+        toast.error("Failed to load products");
+      } finally {
+        setProductsLoading(false);
+      }
+    }
+    loadProductData();
+  }, []);
+
+  const filtered = products.filter(p =>
+    (activeCat == null || p.category?.publicId === activeCat) &&
     p.name.toLowerCase().includes(search.toLowerCase())
   );
 
   function addToCart(p: Product) {
     setCart(prev => {
-      const ex = prev.find(i => i.id === p.id);
-      if (ex) return prev.map(i => i.id === p.id ? { ...i, qty: i.qty + 1 } : i);
-      setSelectedItem(p.id);
-      return [...prev, { id: p.id, name: p.name, unitPrice: p.price, qty: 1 }];
+      const ex = prev.find(i => i.id === p.publicId);
+      if (ex) return prev.map(i => i.id === p.publicId ? { ...i, qty: i.qty + 1 } : i);
+      setSelectedItem(p.publicId);
+      return [...prev, { id: p.publicId, name: p.name, unitPrice: parseFloat(p.price), qty: 1 }];
     });
   }
 
-  function updateQty(id: number, delta: number) {
+  function updateQty(id: string, delta: number) {
     setCart(prev => prev.map(i => i.id === id ? { ...i, qty: Math.max(1, i.qty + delta) } : i));
   }
 
-  function removeItem(id: number) {
+  function removeItem(id: string) {
     setCart(prev => prev.filter(i => i.id !== id));
     if (selectedItem === id) setSelectedItem(null);
   }
 
-  const subtotal      = cart.reduce((s, i) => s + i.unitPrice * i.qty, 0);
-  const tax           = Math.round(subtotal * 0.05);
+  const subtotal = cart.reduce((s, i) => s + i.unitPrice * i.qty, 0);
+  const tax = Math.round(subtotal * 0.05);
   const orderDiscount = appliedCoupon ? Math.round(subtotal * appliedCoupon.pct / 100) : 0;
-  const total         = subtotal + tax - orderDiscount;
-
-  const PAY_METHODS: { key: PayMethod; label: string; icon: React.ElementType }[] = [
-    { key: "cash", label: "Cash", icon: Banknote },
-    { key: "upi",  label: "UPI",  icon: Smartphone },
-    { key: "card", label: "Card", icon: CreditCard },
-  ];
-
-  const NUMPAD_KEYS = ["1","2","3","4","5","6","7","8","9","0","+/-","⌫"];
+  const total = subtotal + tax - orderDiscount;
 
   // ── Shared pane contents ──────────────────────────────────────
 
@@ -193,28 +308,38 @@ export default function POSOrder() {
             ${activeCat === null ? "bg-[#714B67] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
           All
         </button>
-        {CATEGORIES.map(cat => (
-          <button key={cat.id} onClick={() => setActiveCat(activeCat === cat.id ? null : cat.id)}
+        {categories.map(cat => (
+          <button key={cat.publicId} onClick={() => setActiveCat(activeCat === cat.publicId ? null : cat.publicId)}
             className={`text-xs font-semibold py-2 rounded-lg transition
-              ${activeCat === cat.id ? "bg-[#714B67] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
+              ${activeCat === cat.publicId ? "bg-[#714B67] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
             {cat.name}
           </button>
         ))}
       </div>
       {/* Product grid */}
       <div className="flex-1 p-2 sm:p-3 overflow-y-auto">
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-          {filtered.map(p => (
-            <button key={p.id} onClick={() => addToCart(p)}
-              className="bg-white border border-gray-200 rounded-xl p-2.5 sm:p-3 text-left hover:border-[#714B67]/50 hover:shadow-sm transition">
-              <div className="flex items-center gap-1.5 mb-1">
-                <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: p.dot }} />
-                <span className="text-xs font-medium text-[#121B35] truncate">{p.name}</span>
-              </div>
-              <span className="text-xs text-gray-500">₹{p.price}</span>
-            </button>
-          ))}
-        </div>
+        {productsLoading ? (
+          <div className="flex items-center justify-center h-32 text-gray-400">
+            <Loader2 className="w-5 h-5 animate-spin mr-2" />Loading...
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {filtered.map(p => (
+              <button key={p.publicId} onClick={() => addToCart(p)}
+                className="bg-white border border-gray-200 rounded-xl p-2.5 sm:p-3 text-left hover:border-[#714B67]/50 hover:shadow-sm transition">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <span className="w-2 h-2 rounded-full shrink-0"
+                    style={{ backgroundColor: p.category?.color ?? "#4caf50" }} />
+                  <span className="text-xs font-medium text-[#121B35] truncate">{p.name}</span>
+                </div>
+                <span className="text-xs text-gray-500">₹{parseFloat(p.price).toFixed(0)}</span>
+              </button>
+            ))}
+            {filtered.length === 0 && (
+              <p className="col-span-3 text-center text-sm text-gray-400 py-8">No products found</p>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -230,7 +355,7 @@ export default function POSOrder() {
         ) : (
           cart.map(item => {
             const lineTotal = item.unitPrice * item.qty;
-            const discAmt   = item.productDiscount
+            const discAmt = item.productDiscount
               ? Math.round(lineTotal * item.productDiscount / 100)
               : 0;
             return (
@@ -338,65 +463,164 @@ export default function POSOrder() {
 
   const PaymentPane = (
     <div className="flex flex-col h-full bg-white overflow-hidden">
-      {/* Active method header */}
-      <div className="bg-[#714B67] px-4 py-2.5 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-2 text-white">
-          {payMethod === "cash" && <Banknote className="w-4 h-4" />}
-          {payMethod === "upi"  && <Smartphone className="w-4 h-4" />}
-          {payMethod === "card" && <CreditCard className="w-4 h-4" />}
-          <span className="text-sm font-semibold capitalize">{payMethod}</span>
+      {payMethodsLoading ? (
+        <div className="flex items-center justify-center flex-1 text-gray-400">
+          <Loader2 className="w-5 h-5 animate-spin mr-2" />
+          Loading payment methods...
         </div>
-        <button className="text-white/70 hover:text-white transition">
-          <X className="w-4 h-4" />
-        </button>
-      </div>
-      {/* Inactive methods */}
-      <div className="border-b border-gray-100 shrink-0">
-        {PAY_METHODS.filter(m => m.key !== payMethod).map(({ key, label, icon: Icon }) => (
-          <button key={key} onClick={() => setPayMethod(key)}
-            className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 border-b border-gray-100 last:border-b-0 transition">
-            <Icon className="w-4 h-4 text-gray-400" />
-            {label}
-          </button>
-        ))}
-      </div>
-      {/* Amount */}
-      <div className="flex flex-col items-center justify-center py-3 shrink-0">
-        <p className="text-xs text-gray-400 mb-0.5">Amount</p>
-        <p className="text-2xl sm:text-3xl font-bold text-[#121B35] leading-none">₹{total}</p>
-        <p className="text-[10px] text-[#714B67] mt-1 font-semibold uppercase tracking-widest">{payMethod}</p>
-      </div>
-      {/* Mode switcher */}
-      <div className="flex gap-1 px-3 mb-1.5 shrink-0">
-        {(["price","disc","qty"] as NumpadMode[]).map(mode => (
-          <button key={mode} onClick={() => setNumpadMode(mode)}
-            className={`flex-1 py-1 text-xs font-semibold rounded-lg transition
-              ${numpadMode === mode ? "bg-[#714B67] text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}>
-            {mode === "price" ? "Prices" : mode === "disc" ? "Disc." : "Qty"}
-          </button>
-        ))}
-      </div>
-      {/* Numpad */}
-      <div className="flex-1 flex flex-col px-3 pb-3 min-h-0">
-        <div className="grid grid-cols-4 gap-1 flex-1">
-          {NUMPAD_KEYS.map((k, i) => {
-            const isBack = k === "⌫";
-            const isPM   = k === "+/-";
-            return (
-              <button key={i}
-                className={`text-sm font-semibold rounded-xl transition min-h-[2.5rem]
-                  ${isBack ? "bg-red-50 text-red-400 hover:bg-red-100"
-                  : isPM   ? "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                  :           "bg-gray-50 border border-gray-200 text-[#121B35] hover:bg-gray-100"}`}>
-                {isBack ? <Delete className="w-4 h-4 mx-auto" /> : k}
+      ) : !payMethods || payMethods.length === 0 ? (
+        <div className="flex flex-col items-center justify-center flex-1 text-gray-400">
+          <AlertCircle className="w-8 h-8 mb-2" />
+          <p className="text-sm">No payment methods available</p>
+        </div>
+      ) : (
+        <>
+          {/* Active method header */}
+          {selectedMethod && (
+            <div className="bg-[#714B67] px-4 py-2.5 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2 text-white">
+                <MethodIcon type={selectedMethod.type} className="w-4 h-4" />
+                <span className="text-sm font-semibold">{selectedMethod.name}</span>
+              </div>
+              <button className="text-white/70 hover:text-white transition">
+                <X className="w-4 h-4" />
               </button>
-            );
-          })}
+            </div>
+          )}
+          {/* Other payment methods */}
+          <div className="border-b border-gray-100 shrink-0">
+            {payMethods?.filter(m => m.publicId !== selectedMethod?.publicId).map(method => (
+              <button
+                key={method.publicId}
+                onClick={() => setSelectedMethod(method)}
+                className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 border-b border-gray-100 last:border-b-0 transition"
+              >
+                <MethodIcon type={method.type} className="w-4 h-4 text-gray-400" />
+                {method.name}
+              </button>
+            ))}
+          </div>
+          {/* Amount */}
+          <div className="flex flex-col items-center justify-center py-3 shrink-0">
+            <p className="text-xs text-gray-400 mb-0.5">Amount</p>
+            <p className="text-2xl sm:text-3xl font-bold text-[#121B35] leading-none">₹{total}</p>
+            {selectedMethod && (
+              <p className="text-[10px] text-[#714B67] mt-1 font-semibold uppercase tracking-widest">
+                {selectedMethod.name}
+              </p>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* Payment type-specific inputs */}
+      {selectedMethod && !paySuccess && (
+        <div className="flex-1 flex flex-col px-3 pb-3 gap-3 overflow-y-auto">
+          {selectedMethod.type === "CASH" && (
+            <div>
+              <label className="text-xs font-semibold text-gray-500 mb-1.5 block">
+                Cash Received
+              </label>
+              <input
+                type="number"
+                value={cashReceived}
+                onChange={(e) => setCashReceived(e.target.value)}
+                placeholder="Enter amount received"
+                className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl outline-none focus:border-[#714B67] transition"
+              />
+              {cashReceived && !isNaN(parseFloat(cashReceived)) && (
+                <p className="text-xs text-gray-500 mt-1">
+                  Change: ₹{Math.max(0, parseFloat(cashReceived) - total)}
+                </p>
+              )}
+            </div>
+          )}
+
+          {selectedMethod.type === "CARD" && (
+            <div>
+              <label className="text-xs font-semibold text-gray-500 mb-1.5 block">
+                Card Transaction Reference
+              </label>
+              <input
+                type="text"
+                value={cardRef}
+                onChange={(e) => setCardRef(e.target.value)}
+                placeholder="Enter card ref/approval code"
+                className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl outline-none focus:border-[#714B67] transition"
+              />
+            </div>
+          )}
+
+          {selectedMethod.type === "CASHFREE" && (
+            <div className="space-y-3">
+              {cashfreeSession ? (
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-center space-y-3">
+                  <Smartphone className="w-8 h-8 mx-auto text-blue-500" />
+                  <p className="text-sm font-semibold text-blue-800">Cashfree Payment Ready</p>
+                  <p className="text-xs text-blue-600">
+                    Environment: <span className="font-bold">{cashfreeSession.env}</span>
+                  </p>
+                  <div className="bg-white rounded-lg p-2 border border-blue-100">
+                    <p className="text-[10px] text-gray-400 mb-1">Payment Session ID</p>
+                    <p className="text-xs font-mono text-gray-700 break-all">{cashfreeSession.sessionId}</p>
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    Use the Cashfree SDK or share this session ID with the customer device to complete payment.
+                  </p>
+                  <button
+                    onClick={() => setCashfreeSession(null)}
+                    className="text-xs text-blue-500 hover:underline"
+                  >
+                    Cancel & try again
+                  </button>
+                </div>
+              ) : (
+                <div className="text-center text-sm text-gray-500 py-4">
+                  <Smartphone className="w-8 h-8 mx-auto mb-2 text-[#714B67]" />
+                  <p>Click Validate to initiate Cashfree payment</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          <button
+            onClick={handleValidate}
+            disabled={processingPay || cart.length === 0 || (selectedMethod.type === "CASHFREE" && !!cashfreeSession)}
+            className="mt-auto w-full bg-[#714B67] hover:bg-[#5d3d55] text-white py-2.5 rounded-xl text-sm font-bold transition shadow-sm shrink-0 disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            {processingPay ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Processing...
+              </>
+            ) : (
+              <>Validate · ₹{total}</>
+            )}
+          </button>
         </div>
-        <button className="mt-1.5 w-full bg-[#714B67] hover:bg-[#5d3d55] text-white py-2.5 rounded-xl text-sm font-bold transition shadow-sm shrink-0">
-          Validate · ₹{total}
-        </button>
-      </div>
+      )}
+
+      {/* Payment success state */}
+      {paySuccess && (
+        <div className="flex-1 flex flex-col items-center justify-center px-3 pb-3 text-center">
+          <BadgeCheck className="w-16 h-16 text-green-500 mb-4" />
+          <p className="text-lg font-bold text-[#121B35] mb-2">Payment Successful!</p>
+          {paySuccess.change !== undefined && (
+            <p className="text-sm text-gray-500 mb-4">Change: ₹{paySuccess.change}</p>
+          )}
+          <button
+            onClick={() => {
+              setPaySuccess(null);
+              setCashReceived("");
+              setCardRef("");
+              setCashfreeSession(null);
+            }}
+            className="w-full bg-[#714B67] hover:bg-[#5d3d55] text-white py-2.5 rounded-xl text-sm font-bold transition shadow-sm"
+          >
+            New Order
+          </button>
+        </div>
+      )}
     </div>
   );
 
@@ -420,9 +644,9 @@ export default function POSOrder() {
 
         <div className="flex items-center gap-0.5">
           {[
-            { icon: ShoppingCart,      to: ROUTES.ORDERS,      title: "Orders" },
-            { icon: MonitorSmartphone, to: ROUTES.TABLE_VIEW,  title: "Tables" },
-            { icon: ArrowUpFromLine,   to: ROUTES.POS_SESSION, title: "Close Session" },
+            { icon: ShoppingCart, to: ROUTES.ORDERS, title: "Orders" },
+            { icon: MonitorSmartphone, to: ROUTES.TABLE_VIEW, title: "Tables" },
+            { icon: ArrowUpFromLine, to: ROUTES.POS_SESSION, title: "Close Session" },
           ].map(({ icon: Icon, to, title }) => (
             <Link key={title} to={to} title={title}
               className="p-2 text-gray-400 hover:text-[#714B67] hover:bg-gray-50 rounded-lg transition">
@@ -483,15 +707,15 @@ export default function POSOrder() {
         {/* Tab content */}
         <div className="flex-1 overflow-hidden">
           {mobileTab === "products" && ProductsPane}
-          {mobileTab === "cart"     && CartPane}
-          {mobileTab === "payment"  && PaymentPane}
+          {mobileTab === "cart" && CartPane}
+          {mobileTab === "payment" && PaymentPane}
         </div>
         {/* Tab bar */}
         <div className="h-12 bg-white border-t border-gray-200 flex shrink-0">
           {([
-            { key: "products", icon: LayoutGrid,  label: "Products" },
-            { key: "cart",     icon: ShoppingCart, label: `Cart${cart.length ? ` (${cart.length})` : ""}` },
-            { key: "payment",  icon: CreditCard,   label: "Payment" },
+            { key: "products", icon: LayoutGrid, label: "Products" },
+            { key: "cart", icon: ShoppingCart, label: `Cart${cart.length ? ` (${cart.length})` : ""}` },
+            { key: "payment", icon: CreditCard, label: "Payment" },
           ] as { key: MobileTab; icon: React.ElementType; label: string }[]).map(({ key, icon: Icon, label }) => (
             <button key={key} onClick={() => setMobileTab(key)}
               className={`flex-1 flex flex-col items-center justify-center gap-0.5 text-[10px] font-semibold transition
@@ -505,7 +729,7 @@ export default function POSOrder() {
 
       {/* ── BOTTOM LABELS (desktop only) ── */}
       <div className="hidden md:flex h-7 bg-white border-t border-gray-200 shrink-0">
-        {[["38%","PRODUCT"],["32%","CART"],["30%","PAYMENT"]].map(([w, label]) => (
+        {[["38%", "PRODUCT"], ["32%", "CART"], ["30%", "PAYMENT"]].map(([w, label]) => (
           <div key={label} className="flex items-center justify-center border-r border-gray-100 last:border-r-0"
             style={{ width: w }}>
             <span className="text-[10px] font-semibold tracking-widest text-gray-400">{label}</span>

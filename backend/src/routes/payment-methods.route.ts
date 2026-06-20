@@ -64,7 +64,7 @@ router.openapi(
       return created(c, row);
     } catch (e: any) {
       const status = e.status ?? 400;
-      return err(c, status, status === 409 ? "DUPLICATE_NAME" : "BAD_REQUEST", e.message);
+      return err(c, status as any, status === 409 ? "DUPLICATE_NAME" : "BAD_REQUEST", e.message);
     }
   },
 );

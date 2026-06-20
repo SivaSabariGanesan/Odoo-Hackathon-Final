@@ -28,6 +28,7 @@ export const orderStatusEnum = pgEnum("order_status", [
   "SENT_TO_KITCHEN",
   "PREPARING",
   "READY",
+  "PAYMENT_PENDING",
   "PAID",
   "CANCELLED",
 ]);

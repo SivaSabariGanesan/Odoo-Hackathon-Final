@@ -15,9 +15,9 @@ import { err } from "../utils/response.ts";
 export function authorize(roles: Role[]): MiddlewareHandler {
   return async (c, next) => {
     const user = c.get("user");
-    if (!user) return err(c, "Unauthenticated", 401);
+    if (!user) return err(c, 401, "UNAUTHENTICATED", "User not authenticated");
     if (!roles.includes(user.role as Role)) {
-      return err(c, "Insufficient permissions", 403);
+      return err(c, 403, "FORBIDDEN", "Insufficient permissions");
     }
     await next();
   };

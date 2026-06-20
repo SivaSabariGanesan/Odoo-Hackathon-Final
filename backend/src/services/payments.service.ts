@@ -55,10 +55,10 @@ async function validateOrderForPayment(orderPublicId: string) {
     throw Object.assign(new Error("Order not found"), { status: 404, code: "ORDER_NOT_FOUND" });
   }
 
-  const allowedStatuses = ["READY", "PAYMENT_PENDING"];
+  const allowedStatuses = ["DRAFT", "READY", "PAYMENT_PENDING"];
   if (!allowedStatuses.includes(order.status)) {
     throw Object.assign(
-      new Error(`Order status "${order.status}" is not eligible for payment. Allowed: READY, PAYMENT_PENDING`),
+      new Error(`Order status "${order.status}" is not eligible for payment. Allowed: DRAFT, READY, PAYMENT_PENDING`),
       { status: 422, code: "ORDER_STATUS_INVALID" },
     );
   }
