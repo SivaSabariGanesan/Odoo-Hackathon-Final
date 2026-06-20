@@ -6,6 +6,7 @@ import {
   BarChart3, Menu, MonitorSmartphone, ShoppingCart,
   ArrowUpFromLine, CheckCircle, Loader2,
   AlertCircle, BadgeCheck,
+   Delete, Mail,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
@@ -41,7 +42,120 @@ const NAV_ITEMS = [
 
 type MobileTab = "products" | "cart" | "payment";
 
-// ── Coupon Popup ────────────────────────────────────────────────
+// ── Receipt Email Popup ─────────────────────────────────────────
+function ReceiptEmailModal({ onClose }: { onClose: () => void }) {
+  const [email, setEmail] = useState("");
+  const [sent,  setSent]  = useState(false);
+
+  function handleSend() {
+    if (!email.trim()) return;
+    setSent(true);
+    setTimeout(onClose, 1500);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4"
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xs border border-gray-200 overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <h3 className="text-sm font-bold" style={{ color: "#121B35" }}>Send Receipt via Email</h3>
+          <button onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100 transition">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="px-5 py-4 space-y-3">
+          {sent ? (
+            <div className="flex flex-col items-center gap-2 py-3">
+              <CheckCircle className="w-8 h-8 text-emerald-500" />
+              <p className="text-sm font-semibold text-emerald-600">Receipt sent!</p>
+            </div>
+          ) : (
+            <>
+              <p className="text-xs text-gray-400">Enter customer email to send the receipt.</p>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input autoFocus value={email} onChange={e => setEmail(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && handleSend()}
+                  placeholder="customer@email.com" type="email"
+                  className="w-full pl-9 pr-3 py-2.5 text-sm border border-gray-200 rounded-xl outline-none focus:border-[#714B67] transition text-[#121B35] placeholder:text-gray-300" />
+              </div>
+              <button onClick={handleSend}
+                className="w-full bg-[#714B67] hover:bg-[#5d3d55] text-white text-sm font-bold py-2.5 rounded-xl transition shadow-sm">
+                Send Receipt
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Promotion Selector Popup ────────────────────────────────────
+interface AutoPromo { code: string; label: string; pct: number }
+
+function PromotionSelectorModal({
+  promotions,
+  onClose,
+  onApply,
+}: {
+  promotions: AutoPromo[];
+  onClose: () => void;
+  onApply: (promo: AutoPromo) => void;
+}) {
+  const [selected, setSelected] = useState(promotions[0]?.code ?? "");
+
+  function handleEnter() {
+    const promo = promotions.find(p => p.code === selected);
+    if (promo) { onApply(promo); onClose(); }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4"
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xs border border-gray-200 overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <h3 className="text-sm font-bold" style={{ color: "#121B35" }}>Coupon Code</h3>
+          <button onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100 transition">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="px-5 py-3 space-y-2">
+          <p className="text-xs text-gray-400 mb-3">Multiple promotions qualify. Select one to apply on order:</p>
+          {promotions.map(promo => (
+            <label key={promo.code}
+              className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition
+                ${selected === promo.code
+                  ? "border-[#714B67] bg-[#714B67]/5"
+                  : "border-gray-200 hover:border-gray-300"}`}>
+              <input type="radio" name="promo" value={promo.code}
+                checked={selected === promo.code}
+                onChange={() => setSelected(promo.code)}
+                className="accent-[#714B67] shrink-0" />
+              <div>
+                <p className="text-sm font-semibold" style={{ color: "#121B35" }}>{promo.label}</p>
+                <p className="text-xs text-gray-400">{promo.pct}% off entire order</p>
+              </div>
+              {selected === promo.code && (
+                <span className="ml-auto text-[10px] font-bold text-[#714B67] bg-[#714B67]/10 px-2 py-0.5 rounded-full">
+                  Selected
+                </span>
+              )}
+            </label>
+          ))}
+        </div>
+        <div className="px-5 pb-5 pt-2">
+          <button onClick={handleEnter}
+            className="w-full bg-[#714B67] hover:bg-[#5d3d55] text-white text-sm font-bold py-2.5 rounded-xl transition shadow-sm">
+            Enter
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 function CouponModal({
   onClose,
   onApply,
@@ -118,7 +232,9 @@ export default function POSOrder() {
   const [productsLoading, setProductsLoading] = useState(true);
 
   // Coupon state
-  const [couponOpen, setCouponOpen] = useState(false);
+  const [couponOpen, setCouponOpen]     = useState(false);
+  const [promoOpen,  setPromoOpen]      = useState(false);
+  const [receiptOpen, setReceiptOpen]   = useState(false);
   const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; pct: number } | null>(null);
 
   // Payment API state
@@ -135,6 +251,12 @@ export default function POSOrder() {
   const navRef = useRef<HTMLDivElement>(null);
 
   const VALID_COUPONS: Record<string, number> = { "SAVE20": 20, "OFFER30": 30, "FLAT10": 10 };
+
+  // Mock automated promotions that could apply
+  const AUTO_PROMOS: AutoPromo[] = [
+    { code: "AUTO30", label: "30% Discount",  pct: 30 },
+    { code: "AUTO25", label: "25% Discount",  pct: 25 },
+  ];
 
   function applyCoupon(code: string) {
     const pct = VALID_COUPONS[code];
@@ -239,6 +361,10 @@ export default function POSOrder() {
     if (type === "CARD") return <CreditCard className={className} />;
     if (type === "CASHFREE") return <Smartphone className={className} />;
     return <CreditCard className={className} />;
+  }
+
+  function applyAutoPromo(promo: AutoPromo) {
+    setAppliedCoupon({ code: promo.code, pct: promo.pct });
   }
 
   useEffect(() => {
@@ -402,7 +528,9 @@ export default function POSOrder() {
 
       {/* Send to Kitchen */}
       <div className="px-3 pt-1 pb-2 shrink-0">
-        <button className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition">
+        <button
+          onClick={() => cart.length > 0 && setPromoOpen(true)}
+          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition">
           <ChefHat className="w-4 h-4 text-[#714B67]" />
           Send to Kitchen
         </button>
@@ -425,7 +553,8 @@ export default function POSOrder() {
             : <><Tag className="w-3 h-3" /><span className="hidden sm:inline">Discount</span></>
           }
         </button>
-        <button className="flex-1 flex items-center justify-center gap-1 py-2 text-xs font-medium text-gray-500 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 transition">
+        <button className="flex-1 flex items-center justify-center gap-1 py-2 text-xs font-medium text-gray-500 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 transition"
+          onClick={() => setReceiptOpen(true)}>
           <Send className="w-3 h-3" /><span className="hidden sm:inline">Send</span>
         </button>
       </div>
@@ -743,6 +872,20 @@ export default function POSOrder() {
           onClose={() => setCouponOpen(false)}
           onApply={applyCoupon}
         />
+      )}
+
+      {/* ── PROMOTION SELECTOR MODAL ── */}
+      {promoOpen && (
+        <PromotionSelectorModal
+          promotions={AUTO_PROMOS}
+          onClose={() => setPromoOpen(false)}
+          onApply={applyAutoPromo}
+        />
+      )}
+
+      {/* ── RECEIPT EMAIL MODAL ── */}
+      {receiptOpen && (
+        <ReceiptEmailModal onClose={() => setReceiptOpen(false)} />
       )}
     </div>
   );

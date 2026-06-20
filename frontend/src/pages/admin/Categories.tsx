@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import { ROUTES } from "../../routes/paths";
 import { listCategories, createCategory, updateCategory, deleteCategory, type Category } from "../../api/products";
 
-const COLOR_PALETTE = ["#4caf50", "#2196f3", "#ff9800", "#e91e63", "#9c27b0", "#00bcd4", "#714B67", "#f44336"];
+const COLOR_PALETTE = ["#4caf50","#2196f3","#ff9800","#e91e63","#9c27b0","#00bcd4","#714B67","#f44336"];
 
 const NAV_ITEMS = [
   { label: "Products",           icon: LayoutGrid,    to: ROUTES.PRODUCTS },
@@ -26,7 +26,6 @@ const NAV_ITEMS = [
 
 type DraftCategory = Category & { _isNew?: boolean };
 
-// ── Row ───────────────────────────────────────────────────────────
 function CategoryRow({
   cat,
   onCreated,
@@ -40,18 +39,14 @@ function CategoryRow({
   onDeleted: (publicId: string) => void;
   onDiscarded: (tempId: string) => void;
 }) {
-  const [name, setName]     = useState(cat.name);
-  const [color, setColor]   = useState(cat.color || COLOR_PALETTE[0]);
+  const [name, setName] = useState(cat.name);
+  const [color, setColor] = useState(cat.color || COLOR_PALETTE[0]);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
-
   const isDirty = name !== cat.name || color !== cat.color;
 
   async function handleSave() {
-    if (!name.trim()) {
-      if (cat._isNew) onDiscarded(cat.publicId);
-      return;
-    }
+    if (!name.trim()) { if (cat._isNew) onDiscarded(cat.publicId); return; }
     setSaving(true);
     try {
       if (cat._isNew) {
@@ -65,9 +60,7 @@ function CategoryRow({
       }
     } catch (e: any) {
       toast.error(e?.response?.data?.error?.message ?? "Failed to save");
-    } finally {
-      setSaving(false);
-    }
+    } finally { setSaving(false); }
   }
 
   async function handleDelete() {
@@ -80,9 +73,7 @@ function CategoryRow({
       onDeleted(cat.publicId);
     } catch (e: any) {
       toast.error(e?.response?.data?.error?.message ?? "Failed to delete");
-    } finally {
-      setDeleting(false);
-    }
+    } finally { setDeleting(false); }
   }
 
   return (
@@ -96,10 +87,7 @@ function CategoryRow({
           value={name}
           onChange={e => setName(e.target.value)}
           onBlur={() => { if (isDirty || cat._isNew) handleSave(); }}
-          onKeyDown={e => {
-            if (e.key === "Enter") { e.preventDefault(); handleSave(); }
-            if (e.key === "Escape") onDiscarded(cat.publicId);
-          }}
+          onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); handleSave(); } if (e.key === "Escape") onDiscarded(cat.publicId); }}
           className="w-full text-sm text-[#121B35] bg-transparent border-b border-transparent focus:border-[#714B67] outline-none transition placeholder:text-gray-300"
           placeholder="Category name…"
         />
@@ -132,11 +120,10 @@ function CategoryRow({
   );
 }
 
-// ── Main Page ─────────────────────────────────────────────────────
 export default function Categories() {
   const [categories, setCategories] = useState<DraftCategory[]>([]);
-  const [loading, setLoading]       = useState(true);
-  const [navOpen, setNavOpen]       = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [navOpen, setNavOpen] = useState(false);
   const navRef = useRef<HTMLDivElement>(null);
 
   async function load() {
@@ -148,24 +135,16 @@ export default function Categories() {
 
   useEffect(() => { load(); }, []);
   useEffect(() => {
-    const h = (e: MouseEvent) => {
-      if (navRef.current && !navRef.current.contains(e.target as Node)) setNavOpen(false);
-    };
+    const h = (e: MouseEvent) => { if (navRef.current && !navRef.current.contains(e.target as Node)) setNavOpen(false); };
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
   }, []);
 
-  // Add a local draft row — no API call until user types a name
   function handleAdd() {
-    const draft: DraftCategory = {
-      publicId: `draft-${Date.now()}`,
-      name: "",
-      color: COLOR_PALETTE[0],
-      sortOrder: 0,
-      isActive: true,
-      _isNew: true,
-    };
-    setCategories(prev => [...prev, draft]);
+    setCategories(prev => [...prev, {
+      publicId: `draft-${Date.now()}`, name: "", color: COLOR_PALETTE[0],
+      sortOrder: 0, isActive: true, _isNew: true,
+    }]);
   }
 
   return (
@@ -178,28 +157,17 @@ export default function Categories() {
           <span className="text-sm font-bold" style={{ color: "#121B35" }}>Category</span>
         </div>
         <div className="flex items-center gap-0.5 ml-auto">
-          {[
-            { icon: ShoppingCart, to: ROUTES.ORDERS, title: "Orders" },
-            { icon: MonitorSmartphone, to: ROUTES.TABLE_VIEW, title: "Tables" },
-            { icon: ArrowUpFromLine, to: ROUTES.POS_SESSION, title: "Close" },
-          ].map(({ icon: Icon, to, title }) => (
-            <Link key={title} to={to} title={title} className="p-2 text-gray-400 hover:text-[#714B67] hover:bg-gray-50 rounded-lg transition">
-              <Icon className="w-4 h-4" />
-            </Link>
+          {[{ icon: ShoppingCart, to: ROUTES.ORDERS, title: "Orders" }, { icon: MonitorSmartphone, to: ROUTES.TABLE_VIEW, title: "Tables" }, { icon: ArrowUpFromLine, to: ROUTES.POS_SESSION, title: "Close" }].map(({ icon: Icon, to, title }) => (
+            <Link key={title} to={to} title={title} className="p-2 text-gray-400 hover:text-[#714B67] hover:bg-gray-50 rounded-lg transition"><Icon className="w-4 h-4" /></Link>
           ))}
         </div>
-        <Link to={ROUTES.CUSTOMERS} className="p-2 text-gray-400 hover:text-[#714B67] hover:bg-gray-50 rounded-lg transition">
-          <User className="w-4 h-4" />
-        </Link>
+        <Link to={ROUTES.CUSTOMERS} className="p-2 text-gray-400 hover:text-[#714B67] hover:bg-gray-50 rounded-lg transition"><User className="w-4 h-4" /></Link>
         <div className="relative" ref={navRef}>
-          <button onClick={() => setNavOpen(!navOpen)} className="p-2 text-gray-400 hover:text-[#714B67] hover:bg-gray-50 rounded-lg transition">
-            <Menu className="w-4 h-4" />
-          </button>
+          <button onClick={() => setNavOpen(!navOpen)} className="p-2 text-gray-400 hover:text-[#714B67] hover:bg-gray-50 rounded-lg transition"><Menu className="w-4 h-4" /></button>
           {navOpen && (
             <div className="absolute right-0 top-10 bg-white border border-gray-200 rounded-xl shadow-2xl z-50 w-52 py-1">
               {NAV_ITEMS.map(({ label, icon: Icon, to }) => (
-                <Link key={label} to={to} onClick={() => setNavOpen(false)}
-                  className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition">
+                <Link key={label} to={to} onClick={() => setNavOpen(false)} className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition">
                   <Icon className="w-3.5 h-3.5 text-[#714B67]" />{label}
                 </Link>
               ))}
@@ -211,20 +179,14 @@ export default function Categories() {
       <div className="flex-1 p-3 sm:p-6">
         <div className="w-full max-w-2xl mx-auto bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="flex items-center gap-2 px-4 sm:px-5 py-3 border-b border-gray-100">
-            <button onClick={handleAdd}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-[#714B67]/10 hover:bg-[#714B67]/20 text-[#714B67] text-xs font-semibold rounded-lg transition">
+            <button onClick={handleAdd} className="flex items-center gap-1.5 px-3 py-1.5 bg-[#714B67]/10 hover:bg-[#714B67]/20 text-[#714B67] text-xs font-semibold rounded-lg transition">
               <Plus className="w-3.5 h-3.5" />New
             </button>
-            <button onClick={load} className="p-1.5 text-gray-400 hover:text-[#714B67] hover:bg-gray-50 rounded-lg transition">
-              <RefreshCw className="w-3.5 h-3.5" />
-            </button>
+            <button onClick={load} className="p-1.5 text-gray-400 hover:text-[#714B67] hover:bg-gray-50 rounded-lg transition"><RefreshCw className="w-3.5 h-3.5" /></button>
           </div>
-
           <div className="overflow-x-auto">
             {loading ? (
-              <div className="flex items-center justify-center py-16 gap-2 text-gray-400">
-                <Loader2 className="w-5 h-5 animate-spin" /><span className="text-sm">Loading…</span>
-              </div>
+              <div className="flex items-center justify-center py-16 gap-2 text-gray-400"><Loader2 className="w-5 h-5 animate-spin" /><span className="text-sm">Loading…</span></div>
             ) : (
               <table className="w-full min-w-[380px]">
                 <thead>
@@ -237,15 +199,9 @@ export default function Categories() {
                 </thead>
                 <tbody>
                   {categories.map(cat => (
-                    <CategoryRow
-                      key={cat.publicId}
-                      cat={cat}
-                      onCreated={(tempId, saved) =>
-                        setCategories(prev => prev.map(c => c.publicId === tempId ? saved : c))
-                      }
-                      onUpdated={saved =>
-                        setCategories(prev => prev.map(c => c.publicId === saved.publicId ? saved : c))
-                      }
+                    <CategoryRow key={cat.publicId} cat={cat}
+                      onCreated={(tempId, saved) => setCategories(prev => prev.map(c => c.publicId === tempId ? saved : c))}
+                      onUpdated={saved => setCategories(prev => prev.map(c => c.publicId === saved.publicId ? saved : c))}
                       onDeleted={id => setCategories(prev => prev.filter(c => c.publicId !== id))}
                       onDiscarded={tempId => setCategories(prev => prev.filter(c => c.publicId !== tempId))}
                     />
@@ -253,20 +209,15 @@ export default function Categories() {
                   <tr>
                     <td className="pl-3 pr-1 py-3 w-8"><GripVertical className="w-3.5 h-3.5 text-gray-200" /></td>
                     <td colSpan={3} className="px-3 py-2.5">
-                      <button onClick={handleAdd} className="text-xs text-gray-300 hover:text-[#714B67] transition flex items-center gap-1">
-                        <Plus className="w-3 h-3" />Add a line
-                      </button>
+                      <button onClick={handleAdd} className="text-xs text-gray-300 hover:text-[#714B67] transition flex items-center gap-1"><Plus className="w-3 h-3" />Add a line</button>
                     </td>
                   </tr>
                 </tbody>
               </table>
             )}
           </div>
-
           <div className="px-5 py-3 border-t border-gray-100 bg-gray-50">
-            <p className="text-xs text-gray-400">
-              {categories.filter(c => !c._isNew).length} categor{categories.filter(c => !c._isNew).length !== 1 ? "ies" : "y"}
-            </p>
+            <p className="text-xs text-gray-400">{categories.filter(c => !c._isNew).length} categor{categories.filter(c => !c._isNew).length !== 1 ? "ies" : "y"}</p>
           </div>
         </div>
       </div>

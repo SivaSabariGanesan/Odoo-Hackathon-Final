@@ -1,7 +1,5 @@
 import { api } from "./axios";
 
-// ── Types ─────────────────────────────────────────────────────────
-
 export interface Category {
   publicId: string;
   name: string;
@@ -37,10 +35,7 @@ export async function createCategory(payload: { name: string; color?: string }):
   return data.data;
 }
 
-export async function updateCategory(
-  publicId: string,
-  payload: { name?: string; color?: string }
-): Promise<Category> {
+export async function updateCategory(publicId: string, payload: { name?: string; color?: string }): Promise<Category> {
   const { data } = await api.patch<ApiResponse<Category>>(`/categories/${publicId}`, payload);
   return data.data;
 }
@@ -51,11 +46,7 @@ export async function deleteCategory(publicId: string): Promise<void> {
 
 // ── Products ──────────────────────────────────────────────────────
 
-export async function listProducts(params?: {
-  categoryId?: string;
-  isAvailable?: boolean;
-  search?: string;
-}): Promise<Product[]> {
+export async function listProducts(params?: { categoryId?: string; isAvailable?: boolean; search?: string }): Promise<Product[]> {
   const { data } = await api.get<ApiResponse<Product[]>>("/products", { params });
   return data.data;
 }
@@ -75,17 +66,14 @@ export async function createProduct(payload: {
   return data.data;
 }
 
-export async function updateProduct(
-  publicId: string,
-  payload: {
-    name?: string;
-    categoryId?: string;
-    price?: number;
-    taxRate?: number;
-    description?: string;
-    isAvailable?: boolean;
-  }
-): Promise<Product> {
+export async function updateProduct(publicId: string, payload: {
+  name?: string;
+  categoryId?: string;
+  price?: number;
+  taxRate?: number;
+  description?: string;
+  isAvailable?: boolean;
+}): Promise<Product> {
   const { data } = await api.patch<ApiResponse<Product>>(`/products/${publicId}`, payload);
   return data.data;
 }

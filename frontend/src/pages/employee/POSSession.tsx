@@ -1,11 +1,21 @@
 import { useState, useRef, useEffect } from "react";
 import { MoreVertical, Coffee, CalendarDays, IndianRupee, Settings, Monitor } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { ROUTES } from "../../routes/paths";
+import { fetchLastClosedSession, openSession, type Session } from "../../api/sessions";
 
 export default function POSSession() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [lastSession, setLastSession] = useState<Session | null>(null);
+  const [opening, setOpening] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    fetchLastClosedSession()
+      .then(s => setLastSession(s))
+      .catch(err => console.error("Failed to load last session", err));
+  }, []);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -14,6 +24,31 @@ export default function POSSession() {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  async function handleOpenSession() {
+    try {
+      setOpening(true);
+      await openSession(0);
+      navigate(ROUTES.POS_ORDER);
+    } catch (err: any) {
+      const code = err?.response?.data?.error?.code;
+      if (code === "SESSION_ALREADY_OPEN") {
+        // Session already open — go straight to POS
+        navigate(ROUTES.POS_ORDER);
+      } else {
+        alert(err?.response?.data?.error?.message ?? "Failed to open session");
+      }
+    } finally {
+      setOpening(false);
+    }
+  }
+
+  const lastOpen = lastSession?.closedAt
+    ? new Date(lastSession.closedAt).toLocaleDateString("en-IN")
+    : "—";
+  const lastSell = lastSession?.closingSaleAmount
+    ? `₹ ${parseFloat(lastSession.closingSaleAmount).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`
+    : "—";
 
   return (
     <div className="min-h-screen bg-[#F5F5F7] flex items-center justify-center px-4 py-8">
@@ -59,21 +94,23 @@ export default function POSSession() {
               <div className="flex items-center gap-2 text-gray-400 text-sm">
                 <CalendarDays className="w-3.5 h-3.5" /><span>Last open</span>
               </div>
-              <span className="text-sm font-medium" style={{ color: "#121B35" }}>08 / 12 / 2025</span>
+              <span className="text-sm font-medium" style={{ color: "#121B35" }}>{lastOpen}</span>
             </div>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-gray-400 text-sm">
                 <IndianRupee className="w-3.5 h-3.5" /><span>Last sell</span>
               </div>
-              <span className="text-sm font-medium" style={{ color: "#121B35" }}>₹ 5,000.00</span>
+              <span className="text-sm font-medium" style={{ color: "#121B35" }}>{lastSell}</span>
             </div>
           </div>
 
           <div className="px-5 pb-5">
-            <Link to={ROUTES.POS_ORDER}
-              className="flex items-center justify-center w-full bg-[#714B67] hover:bg-[#5d3d55] text-white text-sm font-semibold py-2.5 rounded-xl transition shadow-md shadow-[#714B67]/20">
-              Open Session
-            </Link>
+            <button
+              onClick={handleOpenSession}
+              disabled={opening}
+              className="flex items-center justify-center w-full bg-[#714B67] hover:bg-[#5d3d55] text-white text-sm font-semibold py-2.5 rounded-xl transition shadow-md shadow-[#714B67]/20 disabled:opacity-60 disabled:cursor-not-allowed">
+              {opening ? "Opening…" : "Open Session"}
+            </button>
           </div>
         </div>
 

@@ -65,7 +65,7 @@ router.openapi(
     request: { body: { content: { "application/json": { schema: CustomerBody } }, required: true } },
     responses: { 201: { description: "Created", content: { "application/json": { schema: z.object({ success: z.literal(true), data: CustomerResponse }) } } } },
   }),
-  async (c) => created(c, await svc.createCustomer(c.req.valid("json"))),
+  async (c) => created(c, await svc.createCustomer(c.req.valid("json")) as any),
 );
 
 // PATCH /customers/:id

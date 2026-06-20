@@ -16,11 +16,16 @@ interface AuthContextValue extends AuthState {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+// Persist user to localStorage so role-based routing survives page reload.
 function loadInitialState(): AuthState {
-  return {
-    user: null,
-    accessToken: localStorage.getItem("accessToken"),
-  };
+  try {
+    const accessToken = localStorage.getItem("accessToken");
+    const raw = localStorage.getItem("authUser");
+    const user: AuthUser | null = raw ? JSON.parse(raw) : null;
+    return { user, accessToken };
+  } catch {
+    return { user: null, accessToken: null };
+  }
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -30,6 +35,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const setAuth = useCallback((user: AuthUser, accessToken: string, refreshToken: string) => {
     localStorage.setItem("accessToken", accessToken);
     localStorage.setItem("refreshToken", refreshToken);
+    localStorage.setItem("authUser", JSON.stringify(user));
     setState({ user, accessToken });
   }, []);
 
@@ -40,6 +46,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     localStorage.removeItem("accessToken");
     localStorage.removeItem("refreshToken");
+    localStorage.removeItem("authUser");
     setState({ user: null, accessToken: null });
     navigate(ROUTES.LOGIN);
   }, [navigate]);

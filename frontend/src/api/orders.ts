@@ -22,19 +22,7 @@ export async function createOrder(payload: {
   return data.data;
 }
 
-export async function addItemToOrder(
-  orderId: string,
-  productId: string,
-  quantity: number
-): Promise<Order> {
-  const { data } = await api.post<ApiResponse<Order>>(`/orders/${orderId}/items`, {
-    productId,
-    quantity,
-  });
-  return data.data;
-}
-
-export async function markOrderReady(orderId: string): Promise<Order> {
-  const { data } = await api.post<ApiResponse<Order>>(`/orders/${orderId}/mark-ready`);
+export async function addItemToOrder(orderId: string, productId: string, quantity: number): Promise<Order> {
+  const { data } = await api.post<ApiResponse<Order>>(`/orders/${orderId}/items`, { productId, quantity });
   return data.data;
 }

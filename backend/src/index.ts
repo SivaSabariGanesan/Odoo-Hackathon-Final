@@ -26,6 +26,8 @@ import { authRouter }            from "./routes/auth.route.ts";
 import { paymentMethodsRouter } from "./routes/payment-methods.route.ts";
 import { paymentsRouter }       from "./routes/payments.route.ts";
 import { devRouter }            from "./routes/dev.route.ts";
+import { customerAuthRouter } from "./routes/customer-auth.route.ts";
+import { promotionsRouter } from "./routes/promotions.ts";
 import { selfOrderRouter }  from "./modules/self-order/index.ts";
 import { displayRouter }    from "./modules/customer-display/index.ts";
 

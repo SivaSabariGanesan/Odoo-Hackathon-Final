@@ -1,4 +1,4 @@
-import { eq, and, isNull, sql, or } from "drizzle-orm";
+import { eq, and, isNull, sql, or, ilike, desc, count } from "drizzle-orm";
 import { db } from "../db/index.ts";
 import { promotions, orders, orderItems } from "../db/schema/index.ts";
 
@@ -173,4 +173,131 @@ export async function applyCoupon(orderId: bigint, code: string) {
   });
 
   return { valid: true, promotion: result.promotion };
+}
+
+// ─── Admin CRUD ───────────────────────────────────────────────────────────────
+
+export async function listPromotions(params: {
+  search?: string;
+  type?: string;
+  status?: string;
+  page?: number;
+  pageSize?: number;
+}) {
+  const { search, type, status, page = 1, pageSize = 20 } = params;
+  const conditions = [];
+
+  if (search) conditions.push(ilike(promotions.name, `%${search}%`));
+  if (type) conditions.push(eq(promotions.type, type as any));
+  if (status) conditions.push(eq(promotions.status, status as any));
+
+  const where = conditions.length > 0 ? and(...conditions) : undefined;
+
+  const [totalRes, rows] = await Promise.all([
+    db.select({ c: count() }).from(promotions).where(where),
+    db.query.promotions.findMany({
+      where,
+      limit: pageSize,
+      offset: (page - 1) * pageSize,
+      orderBy: [desc(promotions.createdAt)],
+    }),
+  ]);
+
+  return { rows, total: totalRes[0].c, page, pageSize };
+}
+
+export async function getPromotionById(publicId: string) {
+  return db.query.promotions.findFirst({
+    where: eq(promotions.publicId, publicId),
+  });
+}
+
+export async function createPromotion(data: any) {
+  if (data.couponCode) {
+    const existing = await db.query.promotions.findFirst({
+      where: eq(promotions.couponCode, data.couponCode)
+    });
+    if (existing) return { error: "DUPLICATE_CODE" };
+  }
+
+  const [promo] = await db.insert(promotions).values({
+    name: data.name,
+    description: data.description,
+    type: data.type,
+    status: data.status ?? "ACTIVE",
+    couponCode: data.couponCode,
+    discountValue: data.discountValue.toString(),
+    minOrderAmount: data.minOrderAmount ? data.minOrderAmount.toString() : null,
+    triggerProductId: data.triggerProductId ? BigInt(data.triggerProductId) : null,
+    triggerQty: data.triggerQty,
+    maxUses: data.maxUses,
+    startsAt: data.startsAt ? new Date(data.startsAt) : null,
+    expiresAt: data.expiresAt ? new Date(data.expiresAt) : null,
+  }).returning();
+
+  return { promo };
+}
+
+export async function updatePromotion(publicId: string, data: any) {
+  const existing = await getPromotionById(publicId);
+  if (!existing) return { found: false };
+
+  // Re-check duplicate coupon code if provided and it changed
+  if (data.couponCode && data.couponCode !== existing.couponCode) {
+    const dup = await db.query.promotions.findFirst({
+      where: eq(promotions.couponCode, data.couponCode)
+    });
+    if (dup) return { found: true, error: "DUPLICATE_CODE" };
+  }
+
+  const updateData: any = { updatedAt: new Date() };
+  if (data.name !== undefined) updateData.name = data.name;
+  if (data.description !== undefined) updateData.description = data.description;
+  if (data.status !== undefined) updateData.status = data.status;
+  if (data.couponCode !== undefined) updateData.couponCode = data.couponCode;
+  if (data.discountValue !== undefined) updateData.discountValue = data.discountValue.toString();
+  if (data.minOrderAmount !== undefined) updateData.minOrderAmount = data.minOrderAmount ? data.minOrderAmount.toString() : null;
+  if (data.triggerProductId !== undefined) updateData.triggerProductId = data.triggerProductId ? BigInt(data.triggerProductId) : null;
+  if (data.triggerQty !== undefined) updateData.triggerQty = data.triggerQty;
+  if (data.maxUses !== undefined) updateData.maxUses = data.maxUses;
+  if (data.startsAt !== undefined) updateData.startsAt = data.startsAt ? new Date(data.startsAt) : null;
+  if (data.expiresAt !== undefined) updateData.expiresAt = data.expiresAt ? new Date(data.expiresAt) : null;
+
+  // Explicitly ignore 'type' updates as per requirements.
+
+  const [promo] = await db.update(promotions)
+    .set(updateData)
+    .where(eq(promotions.id, existing.id))
+    .returning();
+
+  return { found: true, promo };
+}
+
+export async function deletePromotion(publicId: string) {
+  const existing = await getPromotionById(publicId);
+  if (!existing) return { found: false };
+
+  // Check if it's referenced by any orders
+  const ref = await db.query.orders.findFirst({
+    where: eq(orders.promotionId, existing.id),
+  });
+
+  if (ref) return { found: true, blocked: true, reason: "Promotion has been applied to historical orders. Use the toggle endpoint to deactivate it instead." };
+
+  await db.delete(promotions).where(eq(promotions.id, existing.id));
+  return { found: true, blocked: false };
+}
+
+export async function togglePromotion(publicId: string) {
+  const existing = await getPromotionById(publicId);
+  if (!existing) return { found: false };
+
+  const newStatus = existing.status === "ACTIVE" ? "INACTIVE" : "ACTIVE";
+  
+  const [promo] = await db.update(promotions)
+    .set({ status: newStatus, updatedAt: new Date() })
+    .where(eq(promotions.id, existing.id))
+    .returning();
+
+  return { found: true, promo };
 }
