@@ -22,6 +22,8 @@ import { ordersRouter }     from "./routes/orders.ts";
 import { couponsRouter }    from "./routes/coupons.ts";
 import { kdsRouter }        from "./routes/kds.ts";
 import { reportsRouter }    from "./routes/reports.ts";
+import { selfOrderRouter }  from "./modules/self-order/index.ts";
+import { displayRouter }    from "./modules/customer-display/index.ts";
 
 // ─── Swagger registration ─────────────────────────────────────────────────────
 import { registerDocs } from "./lib/swagger.ts";
@@ -44,17 +46,19 @@ app.use(
 // ─── Routes ───────────────────────────────────────────────────────────────────
 app.get("/", (c) => c.json({ status: "ok", message: "Cafe POS API is running" }));
 
-app.route("/",    healthRouter);
-app.route("/api", categoriesRouter);
-app.route("/api", productsRouter);
-app.route("/api", floorsRouter);
-app.route("/api", customersRouter);
-app.route("/api", staffRouter);
-app.route("/api", sessionsRouter);
-app.route("/api", ordersRouter);
-app.route("/api", couponsRouter);
-app.route("/api", kdsRouter);
-app.route("/api", reportsRouter);
+app.route("/",                         healthRouter);
+app.route("/api",                      categoriesRouter);
+app.route("/api",                      productsRouter);
+app.route("/api",                      floorsRouter);
+app.route("/api",                      customersRouter);
+app.route("/api",                      staffRouter);
+app.route("/api",                      sessionsRouter);
+app.route("/api",                      ordersRouter);
+app.route("/api",                      couponsRouter);
+app.route("/api",                      kdsRouter);
+app.route("/api",                      reportsRouter);
+app.route("/api/v1/self-order",        selfOrderRouter);
+app.route("/api/v1/customer-display",  displayRouter);
 
 // ─── OpenAPI + Swagger UI ─────────────────────────────────────────────────────
 registerDocs(app);
