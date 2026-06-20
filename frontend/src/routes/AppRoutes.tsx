@@ -24,6 +24,9 @@ import Orders     from "../pages/employee/Orders";
 import TableView  from "../pages/employee/TableView";
 import Customers  from "../pages/employee/Customers";
 
+// User
+import UserDashboard from "../pages/user/Dashboard";
+
 // Kitchen
 import KDS from "../pages/kitchen/KDS";
 
@@ -48,10 +51,9 @@ export default function AppRouter() {
         <Routes>
 
           {/* ── Public ───────────────────────────────────────────── */}
-          <Route index element={<Navigate to={ROUTES.LOGIN} replace />} />
           <Route path="/login" element={<Login />} />
-          {/* /signup is for first-time ADMIN bootstrap only — not linked in UI */}
-          <Route path="/signup" element={<Signup />} />
+          {/* /signup — customer self-registration */}
+          <Route path={ROUTES.SIGNUP} element={<Signup />} />
 
           {/* ── Admin only ───────────────────────────────────────── */}
           <Route element={<ProtectedRoute roles={["ADMIN"]} />}>
@@ -74,6 +76,7 @@ export default function AppRouter() {
             <Route path={ROUTES.ORDERS}      element={<Orders />} />
             <Route path={ROUTES.TABLE_VIEW}  element={<TableView />} />
             <Route path={ROUTES.CUSTOMERS}   element={<Customers />} />
+            <Route path={ROUTES.USER_DASHBOARD} element={<UserDashboard />} />
           </Route>
 
           {/* ── Kitchen only ─────────────────────────────────────── */}

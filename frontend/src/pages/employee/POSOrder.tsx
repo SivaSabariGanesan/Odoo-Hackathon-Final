@@ -7,10 +7,12 @@ import {
   ArrowUpFromLine, CheckCircle, Loader2,
   AlertCircle, BadgeCheck,
    Delete, Mail,
+  Phone, MapPin,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { ROUTES } from "../../routes/paths";
+import { fetchFloors, type Floor, type Table } from "../../api/floors";
 import {
   listPaymentMethods,
   createPaymentOrder,
@@ -218,6 +220,251 @@ function CouponModal({
   );
 }
 
+// ── Table Selector Modal ────────────────────────────────────────
+function TableSelectorModal({
+  onClose,
+  onSelect,
+  selectedTable,
+}: {
+  onClose: () => void;
+  onSelect: (floor: Floor | null, table: Table | null) => void;
+  selectedTable: { floor: string; table: string } | null;
+}) {
+  const [floors, setFloors]           = useState<Floor[]>([]);
+  const [activeFloor, setActiveFloor] = useState<Floor | null>(null);
+  const [loading, setLoading]         = useState(true);
+
+  useEffect(() => {
+    fetchFloors()
+      .then(data => {
+        setFloors(data);
+        if (data.length > 0) setActiveFloor(data[0]);
+      })
+      .catch(() => {/* swallow — show empty state */})
+      .finally(() => setLoading(false));
+  }, []);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4"
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md border border-gray-200 overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <div className="flex items-center gap-2">
+            <MonitorSmartphone className="w-4 h-4 text-[#714B67]" />
+            <h3 className="text-sm font-bold" style={{ color: "#121B35" }}>Select Table</h3>
+          </div>
+          <button onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100 transition">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="px-5 py-4">
+          {loading ? (
+            <p className="text-sm text-gray-400 text-center py-6">Loading floors…</p>
+          ) : floors.length === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-6">No floors configured.</p>
+          ) : (
+            <>
+              {/* Floor tabs */}
+              <div className="flex gap-2 mb-4 flex-wrap">
+                {floors.map(floor => (
+                  <button key={floor.publicId} onClick={() => setActiveFloor(floor)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition
+                      ${activeFloor?.publicId === floor.publicId
+                        ? "bg-[#714B67] text-white border-[#714B67]"
+                        : "bg-gray-50 border-gray-200 text-gray-600 hover:border-gray-300"}`}>
+                    <MapPin className="w-3 h-3" />
+                    {floor.name}
+                  </button>
+                ))}
+              </div>
+
+              {/* Table grid */}
+              {activeFloor && (
+                <div className="grid grid-cols-4 gap-2">
+                  {activeFloor.tables.map(table => {
+                    const isSelected =
+                      selectedTable?.floor === activeFloor.publicId &&
+                      selectedTable?.table === table.publicId;
+                    return (
+                      <button
+                        key={table.publicId}
+                        onClick={() => { onSelect(activeFloor, table); onClose(); }}
+                        className={`
+                          aspect-square rounded-xl text-sm font-bold transition
+                          flex items-center justify-center min-h-[48px] border-2
+                          ${isSelected
+                            ? "bg-emerald-500 text-white border-emerald-500 shadow-md"
+                            : table.isOccupied
+                              ? "bg-[#714B67] text-white border-[#714B67] hover:bg-[#5d3d55]"
+                              : "bg-gray-100 text-gray-600 hover:bg-gray-200 border-gray-200 hover:border-gray-300"
+                          }`}>
+                        {table.tableNumber}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Legend */}
+              <div className="flex items-center gap-4 mt-4">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-3 h-3 rounded bg-gray-200 border border-gray-300" />
+                  <span className="text-xs text-gray-400">Free</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-3 h-3 rounded bg-[#714B67]" />
+                  <span className="text-xs text-gray-400">Occupied</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-3 h-3 rounded bg-emerald-500" />
+                  <span className="text-xs text-gray-400">Selected</span>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Footer — clear selection */}
+        {selectedTable && (
+          <div className="border-t border-gray-100 px-5 py-3">
+            <button
+              onClick={() => { onSelect(null, null); onClose(); }}
+              className="text-xs text-red-400 hover:text-red-600 font-semibold transition">
+              Clear table assignment
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Customer Select Modal ───────────────────────────────────────
+interface CustomerOption {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+}
+
+const MOCK_CUSTOMERS: CustomerOption[] = [
+  { id: "1", name: "Eric",   email: "eric@odoo.com",   phone: "+91 9898989898" },
+  { id: "2", name: "Alex",   email: "alex@odoo.com",   phone: "+91 9898989898" },
+  { id: "3", name: "Sara",   email: "sara@odoo.com",   phone: "+91 9898989898" },
+  { id: "4", name: "Dowel",  email: "dowel@odoo.com",  phone: "+91 9898989898" },
+  { id: "5", name: "Sanjay", email: "sanjay@odoo.com", phone: "+91 9898989898" },
+  { id: "6", name: "Priya",  email: "priya@odoo.com",  phone: "+91 9898989898" },
+  { id: "7", name: "Raj",    email: "raj@odoo.com",    phone: "+91 9898989898" },
+];
+
+function CustomerSelectModal({
+  onClose,
+  onSelect,
+  selectedCustomer,
+}: {
+  onClose: () => void;
+  onSelect: (c: CustomerOption | null) => void;
+  selectedCustomer: CustomerOption | null;
+}) {
+  const [query, setQuery] = useState("");
+
+  const filtered = MOCK_CUSTOMERS.filter(c => {
+    const q = query.toLowerCase();
+    return c.name.toLowerCase().includes(q) || c.email.toLowerCase().includes(q) || c.phone.includes(q);
+  });
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4"
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm border border-gray-200 overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <div className="flex items-center gap-2">
+            <User className="w-4 h-4 text-[#714B67]" />
+            <h3 className="text-sm font-bold" style={{ color: "#121B35" }}>Select Customer</h3>
+          </div>
+          <button onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100 transition">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Search */}
+        <div className="px-4 pt-3 pb-2">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+            <input
+              autoFocus
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder="Search by name, email, phone…"
+              className="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-200 rounded-xl outline-none focus:border-[#714B67] transition placeholder:text-gray-300 text-[#121B35]"
+            />
+          </div>
+        </div>
+
+        {/* List */}
+        <div className="max-h-64 overflow-y-auto divide-y divide-gray-50 px-2 pb-2">
+          {filtered.length === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-8">No customers found</p>
+          ) : (
+            filtered.map(c => {
+              const isSelected = selectedCustomer?.id === c.id;
+              return (
+                <button
+                  key={c.id}
+                  onClick={() => { onSelect(c); onClose(); }}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition
+                    ${isSelected ? "bg-[#714B67]/5 border border-[#714B67]/20" : "hover:bg-gray-50"}`}>
+                  <div className="w-9 h-9 rounded-full bg-[#714B67]/10 flex items-center justify-center shrink-0">
+                    <span className="text-sm font-bold text-[#714B67]">{c.name[0]}</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-[#121B35] truncate">{c.name}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="flex items-center gap-1 text-xs text-gray-400 truncate">
+                        <Mail className="w-3 h-3 shrink-0" />{c.email}
+                      </span>
+                    </div>
+                    <span className="flex items-center gap-1 text-xs text-gray-400">
+                      <Phone className="w-3 h-3 shrink-0" />{c.phone}
+                    </span>
+                  </div>
+                  {isSelected && <CheckCircle className="w-4 h-4 text-[#714B67] shrink-0" />}
+                </button>
+              );
+            })
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="border-t border-gray-100 px-5 py-3 flex items-center justify-between">
+          {selectedCustomer ? (
+            <button
+              onClick={() => { onSelect(null); onClose(); }}
+              className="text-xs text-red-400 hover:text-red-600 font-semibold transition">
+              Remove customer
+            </button>
+          ) : (
+            <span className="text-xs text-gray-400">No customer attached</span>
+          )}
+          <button onClick={onClose}
+            className="text-xs font-semibold text-gray-500 hover:text-gray-700 transition">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function POSOrder() {
   const [activeCat, setActiveCat] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -236,8 +483,13 @@ export default function POSOrder() {
   const [promoOpen,  setPromoOpen]      = useState(false);
   const [receiptOpen, setReceiptOpen]   = useState(false);
   const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; pct: number } | null>(null);
-
-  // Payment API state
+  // Table selector
+  const [tableOpen, setTableOpen]       = useState(false);
+  const [selectedTable, setSelectedTable] = useState<{ floor: string; floorName: string; table: string; tableNumber: string } | null>(null);
+  // Customer selector
+  const [customerOpen, setCustomerOpen] = useState(false);
+  const [attachedCustomer, setAttachedCustomer] = useState<CustomerOption | null>(null);
+    // Payment API state
   const [payMethods, setPayMethods] = useState<PaymentMethod[]>([]);
   const [payMethodsLoading, setPayMethodsLoading] = useState(true);
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null);
@@ -247,7 +499,6 @@ export default function POSOrder() {
   const [cardRef, setCardRef] = useState("");
   const [paySuccess, setPaySuccess] = useState<{ change?: number } | null>(null);
   const [cashfreeSession, setCashfreeSession] = useState<{ sessionId: string; env: string; orderId: string } | null>(null);
-
   const navRef = useRef<HTMLDivElement>(null);
 
   const VALID_COUPONS: Record<string, number> = { "SAVE20": 20, "OFFER30": 30, "FLAT10": 10 };
@@ -365,6 +616,18 @@ export default function POSOrder() {
 
   function applyAutoPromo(promo: AutoPromo) {
     setAppliedCoupon({ code: promo.code, pct: promo.pct });
+  }
+
+  function handleTableSelect(floor: Floor | null, table: Table | null) {
+    if (!floor?.publicId || !table?.publicId) {
+      setSelectedTable(null);
+      return;
+    }
+    setSelectedTable({ floor: floor.publicId, floorName: floor.name, table: table.publicId, tableNumber: table.tableNumber });
+  }
+
+  function handleCustomerSelect(c: CustomerOption | null) {
+    setAttachedCustomer(c);
   }
 
   useEffect(() => {
@@ -538,8 +801,16 @@ export default function POSOrder() {
 
       {/* Action row */}
       <div className="flex gap-1.5 px-3 pb-2 shrink-0">
-        <button className="flex-1 flex items-center justify-center gap-1 py-2 text-xs font-medium text-gray-500 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 transition">
-          <User className="w-3 h-3" /><span className="hidden sm:inline">Customer</span>
+        <button
+          onClick={() => setCustomerOpen(true)}
+          className={`flex-1 flex items-center justify-center gap-1 py-2 text-xs font-medium rounded-lg border transition
+            ${attachedCustomer
+              ? "bg-[#714B67]/5 border-[#714B67]/20 text-[#714B67]"
+              : "bg-gray-50 border-gray-200 text-gray-500 hover:bg-gray-100"}`}>
+          <User className="w-3 h-3" />
+          <span className="hidden sm:inline truncate max-w-[60px]">
+            {attachedCustomer ? attachedCustomer.name : "Customer"}
+          </span>
         </button>
         <button
           onClick={() => setCouponOpen(true)}
@@ -782,19 +1053,40 @@ export default function POSOrder() {
               <Icon className="w-4 h-4" />
             </Link>
           ))}
+          {/* Table selector — opens inline popup */}
+          <button
+            onClick={() => setTableOpen(true)}
+            title="Tables"
+            className={`p-2 rounded-lg transition ${selectedTable ? "text-[#714B67] bg-[#714B67]/10" : "text-gray-400 hover:text-[#714B67] hover:bg-gray-50"}`}>
+            <MonitorSmartphone className="w-4 h-4" />
+          </button>
+          <Link to={ROUTES.POS_SESSION} title="Close Session"
+            className="p-2 text-gray-400 hover:text-[#714B67] hover:bg-gray-50 rounded-lg transition">
+            <ArrowUpFromLine className="w-4 h-4" />
+          </Link>
         </div>
 
-        {/* Session badge — truncated on small screens */}
-        <div className="hidden md:flex bg-[#714B67]/10 text-[#714B67] text-xs font-semibold px-2.5 py-1 rounded-full whitespace-nowrap">
-          Jubilant Shark · 12 V
+        {/* Session / table badge */}
+        <div className="hidden md:flex bg-[#714B67]/10 text-[#714B67] text-xs font-semibold px-2.5 py-1 rounded-full whitespace-nowrap items-center gap-1.5">
+          {selectedTable ? (
+            <>
+              <MonitorSmartphone className="w-3 h-3" />
+              {selectedTable.floorName} · T{selectedTable.tableNumber}
+            </>
+          ) : (
+            "Jubilant Shark · 12 V"
+          )}
         </div>
 
         <div className="flex-1" />
 
-        <Link to={ROUTES.CUSTOMERS} title="Customer"
-          className="p-2 text-gray-400 hover:text-[#714B67] hover:bg-gray-50 rounded-lg transition">
+        {/* Customer selector — opens inline popup */}
+        <button
+          onClick={() => setCustomerOpen(true)}
+          title={attachedCustomer ? `Customer: ${attachedCustomer.name}` : "Attach Customer"}
+          className={`p-2 rounded-lg transition ${attachedCustomer ? "text-[#714B67] bg-[#714B67]/10" : "text-gray-400 hover:text-[#714B67] hover:bg-gray-50"}`}>
           <User className="w-4 h-4" />
-        </Link>
+        </button>
 
         <div className="relative" ref={navRef}>
           <button onClick={() => setNavOpen(!navOpen)}
@@ -886,6 +1178,24 @@ export default function POSOrder() {
       {/* ── RECEIPT EMAIL MODAL ── */}
       {receiptOpen && (
         <ReceiptEmailModal onClose={() => setReceiptOpen(false)} />
+      )}
+
+      {/* ── TABLE SELECTOR MODAL ── */}
+      {tableOpen && (
+        <TableSelectorModal
+          selectedTable={selectedTable ? { floor: selectedTable.floor, table: selectedTable.table } : null}
+          onClose={() => setTableOpen(false)}
+          onSelect={handleTableSelect}
+        />
+      )}
+
+      {/* ── CUSTOMER SELECT MODAL ── */}
+      {customerOpen && (
+        <CustomerSelectModal
+          selectedCustomer={attachedCustomer}
+          onClose={() => setCustomerOpen(false)}
+          onSelect={handleCustomerSelect}
+        />
       )}
     </div>
   );

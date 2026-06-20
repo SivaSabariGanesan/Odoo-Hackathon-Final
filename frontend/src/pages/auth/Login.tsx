@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Eye, EyeOff, Coffee } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -123,10 +123,11 @@ export default function Login() {
 
         </form>
 
-        {/* Role hint — helpful for demos / dev */}
-        <p className="text-center mt-6 text-xs text-gray-400">
-          Access is determined by your role assigned in the system.
-          Contact your administrator if you need an account.
+        <p className="text-center mt-6 text-gray-600 text-sm">
+          New customer?{" "}
+          <Link to="/signup" className="text-[#714B67] font-semibold hover:underline">
+            Create an account
+          </Link>
         </p>
 
       </div>

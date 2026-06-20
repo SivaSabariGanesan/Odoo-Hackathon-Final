@@ -33,6 +33,7 @@
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "drizzle-orm": "^0.45.2",
+    "genai": "^0.0.18",
     "hono": "^4.12.26",
     "jsonwebtoken": "^9.0.3",
     "pdf-lib": "^1.17.1",

@@ -4,13 +4,13 @@ import { Eye, EyeOff, Coffee } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useAuth } from "../../context/AuthContext";
-import { signupRequest } from "../../api/auth";
+import { customerRegister } from "../../api/customer-auth";
 import { ROUTES } from "../../routes/paths";
 
 const signupSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
   email: z.string().email("Enter a valid email"),
+  phone: z.string().min(7, "Enter a valid phone number").optional().or(z.literal("")),
   password: z
     .string()
     .min(8, "Password must be at least 8 characters")
@@ -24,7 +24,6 @@ type SignupForm = z.infer<typeof signupSchema>;
 
 export default function Signup() {
   const [showPassword, setShowPassword] = useState(false);
-  const { setAuth } = useAuth();
   const navigate = useNavigate();
 
   const {
@@ -36,9 +35,14 @@ export default function Signup() {
 
   const onSubmit = async (values: SignupForm) => {
     try {
-      const { user, accessToken, refreshToken } = await signupRequest(values);
-      setAuth(user, accessToken, refreshToken);
-      navigate(ROUTES.ADMIN_DASHBOARD); // signup always creates ADMIN
+      await customerRegister({
+        name: values.name,
+        email: values.email,
+        password: values.password,
+        phone: values.phone || undefined,
+      });
+      // After registration, send them to login
+      navigate(ROUTES.LOGIN, { state: { registered: true } });
     } catch (err: any) {
       const message =
         err?.response?.data?.error?.message ?? "Something went wrong. Please try again.";
@@ -67,7 +71,7 @@ export default function Signup() {
             Create your account
           </h1>
           <p className="text-gray-500 mt-2 text-sm sm:text-base">
-            Sign up to start using Odoo Cafe POS.
+            Sign up to start ordering at Odoo Cafe.
           </p>
         </div>
 
@@ -78,12 +82,12 @@ export default function Signup() {
           </div>
         )}
 
-        <form className="space-y-6" onSubmit={handleSubmit(onSubmit)}>
+        <form className="space-y-5" onSubmit={handleSubmit(onSubmit)}>
 
           {/* Name */}
           <div>
             <label className="block text-sm font-medium text-[#121B35] mb-2">
-              Name
+              Full Name
             </label>
             <input
               type="text"
@@ -104,11 +108,29 @@ export default function Signup() {
             <input
               type="email"
               placeholder="Enter your email"
+              autoComplete="email"
               {...register("email")}
               className="w-full border border-gray-300 rounded-lg px-4 py-3 outline-none focus:border-[#714B67]"
             />
             {errors.email && (
               <p className="mt-1 text-xs text-red-500">{errors.email.message}</p>
+            )}
+          </div>
+
+          {/* Phone (optional) */}
+          <div>
+            <label className="block text-sm font-medium text-[#121B35] mb-2">
+              Phone <span className="text-gray-400 font-normal">(optional)</span>
+            </label>
+            <input
+              type="tel"
+              placeholder="+91 98765 43210"
+              autoComplete="tel"
+              {...register("phone")}
+              className="w-full border border-gray-300 rounded-lg px-4 py-3 outline-none focus:border-[#714B67]"
+            />
+            {errors.phone && (
+              <p className="mt-1 text-xs text-red-500">{errors.phone.message}</p>
             )}
           </div>
 
@@ -121,6 +143,7 @@ export default function Signup() {
               <input
                 type={showPassword ? "text" : "password"}
                 placeholder="Min 8 chars, uppercase, lowercase, number"
+                autoComplete="new-password"
                 {...register("password")}
                 className="w-full border border-gray-300 rounded-lg px-4 py-3 pr-12 outline-none focus:border-[#714B67]"
               />
@@ -128,6 +151,7 @@ export default function Signup() {
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
                 className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500"
+                aria-label={showPassword ? "Hide password" : "Show password"}
               >
                 {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
               </button>
@@ -143,15 +167,15 @@ export default function Signup() {
             disabled={isSubmitting}
             className="w-full bg-[#714B67] text-white py-3 rounded-lg font-semibold hover:bg-[#5d3d55] transition shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            {isSubmitting ? "Creating account..." : "Sign Up"}
+            {isSubmitting ? "Creating account..." : "Create Account"}
           </button>
 
         </form>
 
-        <p className="text-center mt-6 text-gray-600">
-          Already have an account?
-          <Link to="/" className="text-[#714B67] font-semibold ml-1 hover:underline">
-            Login
+        <p className="text-center mt-6 text-gray-600 text-sm">
+          Already have an account?{" "}
+          <Link to={ROUTES.LOGIN} className="text-[#714B67] font-semibold hover:underline">
+            Sign in
           </Link>
         </p>
 
