@@ -5,7 +5,6 @@ import {
   varchar,
   text,
   boolean,
-  integer,
   timestamp,
   pgEnum,
 } from "drizzle-orm/pg-core";
@@ -16,26 +15,45 @@ import { sql } from "drizzle-orm";
 export const paymentMethodTypeEnum = pgEnum("payment_method_type", [
   "CASH",
   "CARD",
-  "UPI_QR",
-  "DIGITAL_WALLET",
+  "CASHFREE",
+]);
+
+export const providerEnvironmentEnum = pgEnum("provider_environment", [
+  "SANDBOX",
+  "PRODUCTION",
 ]);
 
 // ─── payment_methods ──────────────────────────────────────────────────────────
 
 export const paymentMethods = pgTable("payment_methods", {
-  id:         bigserial("id", { mode: "bigint" }).primaryKey(),
-  publicId:   uuid("public_id").notNull().unique().default(sql`gen_random_uuid()`),
+  id:        bigserial("id", { mode: "bigint" }).primaryKey(),
+  publicId:  uuid("public_id").notNull().unique().default(sql`gen_random_uuid()`),
 
-  name:       varchar("name", { length: 100 }).notNull(),           // e.g. "Cash", "PhonePe UPI"
-  type:       paymentMethodTypeEnum("type").notNull(),
+  name:      varchar("name", { length: 100 }).notNull().unique(),
+  type:      paymentMethodTypeEnum("type").notNull(),
+  isEnabled: boolean("is_enabled").notNull().default(true),
 
-  // UPI-specific
-  upiId:      varchar("upi_id", { length: 100 }),                   // e.g. merchant@upi
-  upiQrUrl:   text("upi_qr_url"),                                    // pre-generated QR image URL
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().default(sql`now()`),
+});
 
-  isEnabled:  boolean("is_enabled").notNull().default(true),
-  sortOrder:  integer("sort_order").notNull().default(0),
+// ─── payment_provider_configs ─────────────────────────────────────────────────
+// Stores encrypted Cashfree credentials — secrets never leave the backend.
 
-  createdAt:  timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
-  updatedAt:  timestamp("updated_at", { withTimezone: true }).notNull().default(sql`now()`),
+export const paymentProviderConfigs = pgTable("payment_provider_configs", {
+  id:            bigserial("id", { mode: "bigint" }).primaryKey(),
+  publicId:      uuid("public_id").notNull().unique().default(sql`gen_random_uuid()`),
+
+  providerName:  varchar("provider_name", { length: 50 }).notNull().unique(), // e.g. "CASHFREE"
+
+  // AES-256-GCM encrypted: "<iv>:<authTag>:<ciphertext>" stored as text
+  clientId:      text("client_id"),
+  clientSecret:  text("client_secret"),
+  webhookSecret: text("webhook_secret"),
+
+  environment:   providerEnvironmentEnum("environment").notNull().default("SANDBOX"),
+  isEnabled:     boolean("is_enabled").notNull().default(false),
+
+  createdAt:     timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
+  updatedAt:     timestamp("updated_at", { withTimezone: true }).notNull().default(sql`now()`),
 });
