@@ -1,0 +1,25 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: cafe_pos_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-cafe_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cafe_pass}
+      POSTGRES_DB: ${POSTGRES_DB:-cafe_pos}
+      # Use md5 auth so Node pg driver (which may not support scram-sha-256) can connect
+      POSTGRES_HOST_AUTH_METHOD: md5
+      POSTGRES_INITDB_ARGS: "--auth-host=md5 --auth-local=md5"
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-cafe_user} -d ${POSTGRES_DB:-cafe_pos}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+    driver: local
