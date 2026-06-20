@@ -13,10 +13,21 @@ import { ok, created, err } from "../utils/response.ts";
 const router = createRouter();
 const T = ["Payment Methods"];
 
-// All routes: Admin only
-router.use("/api/v1/payment-methods",          authenticate, authorize(["ADMIN"]));
-router.use("/api/v1/payment-methods/*",        authenticate, authorize(["ADMIN"]));
+// Authenticate all payment-methods routes
+router.use("/api/v1/payment-methods",          authenticate);
+router.use("/api/v1/payment-methods/*",        authenticate);
 router.use("/api/v1/payment-providers/*",      authenticate, authorize(["ADMIN"]));
+
+// Write operations on payment-methods are admin-only
+// (GET list + GET by ID are readable by CASHIER for POS checkout)
+router.use("/api/v1/payment-methods", async (c, next) => {
+  if (c.req.method !== "GET") return authorize(["ADMIN"])(c, next);
+  return next();
+});
+router.use("/api/v1/payment-methods/*", async (c, next) => {
+  if (c.req.method !== "GET") return authorize(["ADMIN"])(c, next);
+  return next();
+});
 
 const idParam = z.object({ id: z.string().uuid() });
 

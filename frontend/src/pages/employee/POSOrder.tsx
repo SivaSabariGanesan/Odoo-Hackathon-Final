@@ -25,6 +25,7 @@ import {
 import { listCategories, listProducts, type Category, type Product } from "../../api/products";
 import {
   createOrder, addItemToOrder, updateOrderItem, removeOrderItem, getOrder,
+  sendToKitchen,
   applyCoupon as applyCouponApi, findOrderItemForProduct, type Order,
 } from "../../api/orders";
 
@@ -540,6 +541,7 @@ export default function POSOrder() {
   const [cardRef, setCardRef] = useState("");
   const [paySuccess, setPaySuccess] = useState<{ change?: number } | null>(null);
   const [cashfreeSession, setCashfreeSession] = useState<{ sessionId: string; env: string; orderId: string } | null>(null);
+  const [sendingToKitchen, setSendingToKitchen] = useState(false);
   const navRef = useRef<HTMLDivElement>(null);
 
   // Auto promos placeholder (future: fetch from /coupons/eligible/:orderId)
@@ -620,6 +622,7 @@ export default function POSOrder() {
           return;
         }
         const result = await processCashPayment(orderId, txn.transactionId, received);
+        await sendToKitchen(orderId).catch(() => {});
         setPaySuccess({ change: result.change });
         toast.success(`Payment successful! Change: ₹${result.change}`, { id: "checkout" });
         setCart([]);
@@ -633,6 +636,7 @@ export default function POSOrder() {
           return;
         }
         await processCardPayment(orderId, txn.transactionId, cardRef.trim());
+        await sendToKitchen(orderId).catch(() => {});
         setPaySuccess({});
         toast.success("Card payment successful!", { id: "checkout" });
         setCart([]);
@@ -657,11 +661,12 @@ export default function POSOrder() {
         cashfree.checkout({
           paymentSessionId: cfResult.paymentSessionId,
           redirectTarget: "_modal",
-        }).then((result: any) => {
+        }).then(async (result: any) => {
           if (result.error) {
             toast.error(result.error.message ?? "Payment failed");
             setCashfreeSession(null);
           } else if (result.paymentDetails) {
+            await sendToKitchen(orderId!).catch(() => {});
             setPaySuccess({});
             setCashfreeSession(null);
             setCart([]);
@@ -736,6 +741,20 @@ export default function POSOrder() {
     (activeCat == null || p.category?.publicId === activeCat) &&
     p.name.toLowerCase().includes(search.toLowerCase())
   );
+
+  async function handleSendToKitchen() {
+    if (!activeOrderId || cart.length === 0) return;
+    setSendingToKitchen(true);
+    try {
+      await sendToKitchen(activeOrderId);
+      toast.success("Order sent to kitchen!");
+    } catch (e: any) {
+      const msg = e?.response?.data?.error?.message ?? "Failed to send to kitchen";
+      toast.error(msg);
+    } finally {
+      setSendingToKitchen(false);
+    }
+  }
 
   async function addToCart(p: Product) {
     // Eagerly create a real order on first item so coupon validation has an orderId
@@ -953,9 +972,12 @@ export default function POSOrder() {
       {/* Send to Kitchen */}
       <div className="px-3 pt-1 pb-2 shrink-0">
         <button
-          onClick={() => cart.length > 0 && setPromoOpen(true)}
-          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition">
-          <ChefHat className="w-4 h-4 text-[#714B67]" />
+          onClick={handleSendToKitchen}
+          disabled={cart.length === 0 || !activeOrderId || sendingToKitchen}
+          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition disabled:opacity-40 disabled:cursor-not-allowed">
+          {sendingToKitchen
+            ? <Loader2 className="w-4 h-4 text-[#714B67] animate-spin" />
+            : <ChefHat className="w-4 h-4 text-[#714B67]" />}
           Send to Kitchen
         </button>
       </div>

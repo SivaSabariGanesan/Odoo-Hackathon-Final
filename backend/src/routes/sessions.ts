@@ -17,9 +17,9 @@ const SessionResponse = z.object({
 
 const router = createRouter();
 
-// All session routes require authentication
-router.use("/sessions",           authenticate);
-router.use("/sessions/*",         authenticate);
+// Protect mutating session routes
+router.use("/sessions/open",       authenticate);
+router.use("/sessions/:id/close",  authenticate);
 
 // GET /sessions/last-closed
 router.openapi(
@@ -83,7 +83,6 @@ router.openapi(
   }),
   async (c) => {
     const user = c.get("user");
-    if (!user) return err(c, 401, "UNAUTHORIZED", "Authentication required") as any;
     const body = await c.req.json().catch(() => ({}));
     const result = await svc.openSession(BigInt(user.id), (body as any).openingCash ?? 0);
     if ("error" in result) return conflict(c, "SESSION_ALREADY_OPEN", "A session is already open") as any;
@@ -109,7 +108,6 @@ router.openapi(
   }),
   async (c) => {
     const user = c.get("user");
-    if (!user) return err(c, 401, "UNAUTHORIZED", "Authentication required") as any;
     const result = await svc.closeSession(c.req.param("id"), BigInt(user.id));
     if (!result.found) return notFound(c, "Session not found") as any;
     if ("error" in result) return conflict(c, "SESSION_NOT_OPEN", "Session is not open") as any;

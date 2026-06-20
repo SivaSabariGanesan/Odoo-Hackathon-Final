@@ -71,7 +71,7 @@ app.route("/",                         paymentsRouter);
 app.route("/",                         devRouter);
 app.route("/api/v1/self-order",        selfOrderRouter);
 app.route("/api/v1/customer-display",  displayRouter);
-app.route("/api/v1",                   customerAuthRouter);
+app.route("/api",                      customerAuthRouter);
 app.route("/api",                      promotionsRouter);
 
 // ─── OpenAPI + Swagger UI ─────────────────────────────────────────────────────
