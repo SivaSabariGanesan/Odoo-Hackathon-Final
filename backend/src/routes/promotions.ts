@@ -1,5 +1,7 @@
 import { createRoute, z } from "@hono/zod-openapi";
 import { createRouter } from "../lib/openapi.ts";
+import { authenticate } from "../middleware/authenticate.ts";
+import { authorize } from "../middleware/authorize.ts";
 import * as svc from "../services/promotion.service.ts";
 import { ok, created, notFound, conflict, err } from "../utils/response.ts";
 
@@ -74,6 +76,10 @@ const ErrorResponse = z.object({
 });
 
 const router = createRouter();
+
+// Promotions management requires ADMIN role
+router.use("/promotions",    authenticate, authorize(["ADMIN"]));
+router.use("/promotions/*",  authenticate, authorize(["ADMIN"]));
 
 // GET /promotions
 router.openapi(

@@ -1,5 +1,6 @@
 import { createRoute, z } from "@hono/zod-openapi";
 import { createRouter } from "../lib/openapi.ts";
+import { authenticate } from "../middleware/authenticate.ts";
 import * as floorSvc from "../services/floor.service.ts";
 import { ok, created, notFound, conflict } from "../utils/response.ts";
 
@@ -25,6 +26,16 @@ const FloorResponse = z.object({ id: z.any(), publicId: z.string().uuid(), name:
 const TableResponse = z.object({ id: z.any(), publicId: z.string().uuid(), tableNumber: z.string(), seats: z.number(), isActive: z.boolean(), isOccupied: z.boolean().optional() }).passthrough();
 
 const router = createRouter();
+
+// All floor/table management routes require authentication
+// The public QR resolve endpoint (/floors/tables/resolve/:token) is exempt
+router.use("/floors",                          authenticate);
+router.use("/floors/:id",                      authenticate);
+router.use("/floors/:id/*",                    authenticate);
+router.use("/floors/:floorId/tables",          authenticate);
+router.use("/floors/tables",                   authenticate);
+router.use("/floors/tables/:id",               authenticate);
+router.use("/floors/tables/:id/toggle-active", authenticate);
 
 // GET /floors
 router.openapi(

@@ -13,6 +13,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
+
 // ─── Enums ────────────────────────────────────────────────────────────────────
 
 export const taxTypeEnum = pgEnum("tax_type", ["NONE", "INCLUSIVE", "EXCLUSIVE"]);
@@ -56,9 +57,17 @@ export const products = pgTable("products", {
   taxRate:     numeric("tax_rate", { precision: 5, scale: 2 }).notNull().default("0.00"),
 
   // Flags
-  isAvailable:    boolean("is_available").notNull().default(true),
-  sendToKitchen:  boolean("send_to_kitchen").notNull().default(true),
-  isFeatured:     boolean("is_featured").notNull().default(false),
+  // Flags
+isAvailable:    boolean("is_available").notNull().default(true),
+sendToKitchen:  boolean("send_to_kitchen").notNull().default(true),
+
+// Controls whether this product appears in Kitchen Display System.
+// Example:
+// Coffee -> true
+// Bottled Water -> false
+kdsVisible:     boolean("kds_visible").notNull().default(true),
+
+isFeatured:     boolean("is_featured").notNull().default(false),
 
   sortOrder:   integer("sort_order").notNull().default(0),
 

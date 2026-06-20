@@ -170,19 +170,34 @@ export async function getEligiblePromotions(orderId: bigint): Promise<EligiblePr
 }
 
 // ─── Apply best automated promotion ──────────────────────────────────────────
+//
+// IMPORTANT: This function only manages AUTO_* promotions. It will never touch
+// an order that already has a COUPON_* promotion applied — the cashier's manual
+// coupon entry takes priority and must survive every cart mutation.
 
 export async function applyBestPromotion(orderId: bigint): Promise<void> {
+  const order = await db.query.orders.findFirst({ where: eq(orders.id, orderId) });
+  if (!order) return;
+
+  // If a coupon is currently applied, leave it alone — only AUTO_* promotions
+  // are managed here. Coupons are applied explicitly via applyCoupon().
+  if (order.promotionId) {
+    const currentPromo = await db.query.promotions.findFirst({
+      where: eq(promotions.id, order.promotionId),
+    });
+    if (currentPromo && (currentPromo.type === "COUPON_PERCENTAGE" || currentPromo.type === "COUPON_FIXED")) {
+      // A coupon is active — do not overwrite it with an auto-promotion.
+      return;
+    }
+  }
+
   const eligible = await getEligiblePromotions(orderId);
   if (eligible.length === 0) {
-    // Clear any existing auto promotion
-    const order = await db.query.orders.findFirst({ where: eq(orders.id, orderId) });
-    if (order?.promotionId) {
-      const promo = await db.query.promotions.findFirst({ where: eq(promotions.id, order.promotionId) });
-      if (promo && (promo.type === "AUTO_PRODUCT_QTY" || promo.type === "AUTO_ORDER_AMOUNT")) {
-        await db.update(orders)
-          .set({ promotionId: null, discountAmount: "0.00", updatedAt: new Date() })
-          .where(eq(orders.id, orderId));
-      }
+    // Clear any existing AUTO_* promotion (only — coupon guard above already handled coupons)
+    if (order.promotionId) {
+      await db.update(orders)
+        .set({ promotionId: null, discountAmount: "0.00", updatedAt: new Date() })
+        .where(eq(orders.id, orderId));
     }
     return;
   }

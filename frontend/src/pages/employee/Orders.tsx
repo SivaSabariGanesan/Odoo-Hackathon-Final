@@ -32,21 +32,22 @@ function formatTime(iso: string | undefined) {
 }
 
 function StatusBadge({ status }: { status: Order["status"] }) {
-  const map: Record<Order["status"], string> = {
+  const map: Record<string, string> = {
     DRAFT:            "bg-gray-100 text-gray-600 border border-gray-200",
     SENT_TO_KITCHEN:  "bg-blue-100 text-blue-700 border border-blue-200",
     PREPARING:        "bg-amber-100 text-amber-700 border border-amber-200",
     READY:            "bg-teal-100 text-teal-700 border border-teal-200",
+    PAYMENT_PENDING:  "bg-yellow-100 text-yellow-700 border border-yellow-200",
     PAID:             "bg-[#714B67] text-white",
     CANCELLED:        "bg-red-100 text-red-600 border border-red-200",
   };
-  const label: Record<Order["status"], string> = {
+  const label: Record<string, string> = {
     DRAFT: "Draft", SENT_TO_KITCHEN: "In Kitchen", PREPARING: "Preparing",
-    READY: "Ready", PAID: "Paid", CANCELLED: "Cancelled",
+    READY: "Ready", PAYMENT_PENDING: "Processing", PAID: "Paid", CANCELLED: "Cancelled",
   };
   return (
-    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${map[status]}`}>
-      {label[status]}
+    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${map[status] ?? "bg-gray-100 text-gray-600"}`}>
+      {label[status] ?? status}
     </span>
   );
 }

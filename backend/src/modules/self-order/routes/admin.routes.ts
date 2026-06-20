@@ -1,10 +1,17 @@
 import { createRoute, z } from "@hono/zod-openapi";
 import { createRouter } from "../../../lib/openapi.ts";
+import { authenticate } from "../../../middleware/authenticate.ts";
+import { authorize } from "../../../middleware/authorize.ts";
 import { configService } from "../services/config.service.ts";
 import { qrService } from "../services/qr.service.ts";
 import { configUpdateSchema, configResponseSchema } from "../validators/config.schema.ts";
 
 const router = createRouter();
+
+// All admin self-order routes require ADMIN auth
+router.use("/config",    authenticate, authorize(["ADMIN"]));
+router.use("/qr-codes",  authenticate, authorize(["ADMIN"]));
+router.use("/qr/*",      authenticate, authorize(["ADMIN"]));
 
 router.openapi(
   createRoute({

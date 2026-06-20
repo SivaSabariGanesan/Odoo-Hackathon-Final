@@ -1,5 +1,6 @@
 import { createRoute, z } from "@hono/zod-openapi";
 import { createRouter } from "../lib/openapi.ts";
+import { authenticate } from "../middleware/authenticate.ts";
 import * as svc from "../services/session.service.ts";
 import { ok, created, notFound, conflict, err } from "../utils/response.ts";
 
@@ -9,10 +10,16 @@ const SessionResponse = z.object({
   id: z.any(), publicId: z.string().uuid(),
   status: z.enum(["OPEN", "CLOSED"]),
   openingCash: z.string(), closingCash: z.string().nullable(),
+  closingSaleAmount: z.string().nullable().optional(),
   openedAt: z.string().datetime(), closedAt: z.string().datetime().nullable(),
+  openedBy: z.object({ publicId: z.string(), name: z.string() }).nullable().optional(),
 }).passthrough();
 
 const router = createRouter();
+
+// All session routes require authentication
+router.use("/sessions",           authenticate);
+router.use("/sessions/*",         authenticate);
 
 // GET /sessions/last-closed
 router.openapi(
@@ -75,7 +82,7 @@ router.openapi(
     },
   }),
   async (c) => {
-    const user = (c as any).get?.("user") ?? (c.req as any).user;
+    const user = c.get("user");
     if (!user) return err(c, 401, "UNAUTHORIZED", "Authentication required") as any;
     const body = await c.req.json().catch(() => ({}));
     const result = await svc.openSession(BigInt(user.id), (body as any).openingCash ?? 0);
@@ -101,7 +108,7 @@ router.openapi(
     },
   }),
   async (c) => {
-    const user = (c as any).get?.("user") ?? (c.req as any).user;
+    const user = c.get("user");
     if (!user) return err(c, 401, "UNAUTHORIZED", "Authentication required") as any;
     const result = await svc.closeSession(c.req.param("id"), BigInt(user.id));
     if (!result.found) return notFound(c, "Session not found") as any;

@@ -390,7 +390,7 @@ router.openapi(
     await posCoreStubs.sendToKitchen(order.id);
     
     return c.json({ 
-      orderId: order.id,
+      orderId: order.publicId,
       status: "SENT_TO_KITCHEN"
     }, 200);
   }

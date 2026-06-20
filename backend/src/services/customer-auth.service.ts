@@ -50,7 +50,7 @@ export async function customerRegister(input: CustomerRegisterInput) {
       and(eq(c.email, input.email), isNullFn(c.deletedAt)),
   });
 
-  if (existing && (existing as any).password_hash) {
+  if (existing && (existing as any).passwordHash) {
     throw Object.assign(new Error("Email already registered"), { status: 409 });
   }
 

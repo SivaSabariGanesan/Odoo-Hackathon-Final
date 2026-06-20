@@ -1,5 +1,7 @@
 import { createRoute, z } from "@hono/zod-openapi";
 import { createRouter } from "../lib/openapi.ts";
+import { authenticate } from "../middleware/authenticate.ts";
+import { authorize } from "../middleware/authorize.ts";
 import * as svc from "../services/staff.service.ts";
 import { ok, created, notFound, conflict } from "../utils/response.ts";
 
@@ -29,6 +31,11 @@ const UpdateStaffBody = z.object({
 });
 
 const router = createRouter();
+
+// Staff management requires ADMIN role
+router.use("/staff",              authenticate, authorize(["ADMIN"]));
+router.use("/staff/*",            authenticate, authorize(["ADMIN"]));
+router.use("/users/*",            authenticate, authorize(["ADMIN"]));
 
 // POST /staff
 router.openapi(

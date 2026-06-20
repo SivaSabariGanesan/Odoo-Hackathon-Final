@@ -1,4 +1,4 @@
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, inArray } from "drizzle-orm";
 import { db } from "../db/index.ts";
 import { floors, floorTables, orders } from "../db/schema/index.ts";
 import { emit } from "../utils/events.ts";
@@ -83,17 +83,45 @@ export async function deleteFloor(publicId: string) {
   return { found: true, blocked: false };
 }
 
+const ACTIVE_TABLE_ORDER_STATUSES = [
+  "DRAFT",
+  "SENT_TO_KITCHEN",
+  "PREPARING",
+  "READY",
+  "PAYMENT_PENDING",
+] as const;
+
 // ─── Tables ───────────────────────────────────────────────────────────────────
 
 /**
- * Derived occupied status: a table is occupied if it has an open DRAFT order.
+ * Derived occupied status:
+ * A table is occupied while it has an active order.
+ *
+ * Occupied:
+ * - DRAFT
+ * - SENT_TO_KITCHEN
+ * - PREPARING
+ * - READY
+ * - PAYMENT_PENDING
+ *
+ * Free:
+ * - PAID
+ * - CANCELLED
  */
 async function getOccupiedTableIds(): Promise<Set<string>> {
   const rows = await db
-    .select({ tableId: orders.tableId })
+    .select({
+      tableId: orders.tableId,
+    })
     .from(orders)
-    .where(and(eq(orders.status, "DRAFT"), sql`${orders.tableId} IS NOT NULL`));
-  return new Set(rows.map((r) => String(r.tableId)));
+    .where(
+      and(
+        inArray(orders.status, ACTIVE_TABLE_ORDER_STATUSES),
+        sql`${orders.tableId} IS NOT NULL`
+      )
+    );
+
+  return new Set(rows.map((row) => String(row.tableId)));
 }
 
 export async function listTablesForFloor(floorPublicId: string) {
@@ -168,11 +196,16 @@ export async function toggleTableActive(publicId: string) {
 export async function deleteTable(publicId: string) {
   const existing = await db.query.floorTables.findFirst({
     where: eq(floorTables.publicId, publicId),
-    with: { orders: { where: eq(orders.status, "DRAFT"), columns: { id: true } } },
+    with: {
+  orders: {
+    where: inArray(orders.status, ACTIVE_TABLE_ORDER_STATUSES),
+    columns: { id: true },
+  },
+},
   });
   if (!existing) return { found: false };
   if (existing.orders && existing.orders.length > 0) {
-    return { found: true, blocked: true, reason: "Table has an open order" };
+    return { found: true, blocked: true, reason: "Table has active orders" };
   }
 
   await db.update(floorTables)

@@ -1,5 +1,7 @@
 import { createRoute, z } from "@hono/zod-openapi";
 import { createRouter } from "../lib/openapi.ts";
+import { authenticate } from "../middleware/authenticate.ts";
+import { authorize } from "../middleware/authorize.ts";
 import * as svc from "../services/category.service.ts";
 import { ok, created, notFound, conflict } from "../utils/response.ts";
 
@@ -29,6 +31,10 @@ const ErrorResponse = z.object({
 });
 
 const router = createRouter();
+
+// All category routes require authentication (reads: any role, writes: ADMIN only)
+router.use("/categories",    authenticate);
+router.use("/categories/*",  authenticate);
 
 // GET /categories
 router.openapi(

@@ -1,5 +1,6 @@
 import { createRoute, z } from "@hono/zod-openapi";
 import { createRouter } from "../lib/openapi.ts";
+import { authenticate } from "../middleware/authenticate.ts";
 import * as svc from "../services/customer.service.ts";
 import { ok, created, notFound } from "../utils/response.ts";
 
@@ -14,6 +15,10 @@ const CustomerBody = z.object({
 const CustomerResponse = z.object({ id: z.any(), publicId: z.string().uuid(), name: z.string(), email: z.string().nullable(), phone: z.string().nullable() }).passthrough();
 
 const router = createRouter();
+
+// All customer routes require authentication
+router.use("/customers",    authenticate);
+router.use("/customers/*",  authenticate);
 
 // GET /customers
 router.openapi(

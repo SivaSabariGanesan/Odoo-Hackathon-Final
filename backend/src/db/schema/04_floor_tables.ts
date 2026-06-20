@@ -4,21 +4,11 @@ import {
   bigint,
   uuid,
   varchar,
-  text,
   boolean,
   integer,
   timestamp,
-  pgEnum,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
-
-// ─── Enums ────────────────────────────────────────────────────────────────────
-
-export const tableStateEnum = pgEnum("table_state", [
-  "AVAILABLE",
-  "ACTIVE",
-  "PAYMENT_PENDING",
-]);
 
 // ─── floors ───────────────────────────────────────────────────────────────────
 
@@ -35,6 +25,10 @@ export const floors = pgTable("floors", {
 });
 
 // ─── floor_tables ─────────────────────────────────────────────────────────────
+// NOTE: Occupancy is derived at query time from the existence of a DRAFT order
+//       for this table (see floor.service.ts:getOccupiedTableIds). There is no
+//       stored state column — that was removed to eliminate the dual-write bug
+//       where floor_tables.state and the orders table could disagree.
 
 export const floorTables = pgTable("floor_tables", {
   id:          bigserial("id", { mode: "bigint" }).primaryKey(),
@@ -46,9 +40,9 @@ export const floorTables = pgTable("floor_tables", {
 
   tableNumber: varchar("table_number", { length: 20 }).notNull(),   // e.g. "T-01"
   seats:       integer("seats").notNull().default(4),
-  state:       tableStateEnum("state").notNull().default("AVAILABLE"),
 
-  // QR self-ordering token — rotated per session or on demand
+  // QR self-ordering token — stable per table, embedded directly in printed QR.
+  // Do NOT rotate this without also reprinting the QR codes.
   qrToken:     uuid("qr_token").notNull().unique().default(sql`gen_random_uuid()`),
 
   isActive:    boolean("is_active").notNull().default(true),
