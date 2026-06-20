@@ -5,9 +5,7 @@ import {
   varchar,
   text,
   integer,
-  timestamp,
-  text,
-  integer,
+  timestamp
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
@@ -20,11 +18,7 @@ export const customers = pgTable("customers", {
   email:        varchar("email", { length: 255 }),
   phone:        varchar("phone", { length: 20 }),
 
-  // Added by migration 004 — customer self-registration
-  passwordHash: text("password_hash"),
-  loyaltyPoints: integer("loyalty_points").notNull().default(0),
-
-  // Customer authentication
+  // Customer authentication (added by migration 004)
   passwordHash: text("password_hash"),
 
   // Loyalty system
