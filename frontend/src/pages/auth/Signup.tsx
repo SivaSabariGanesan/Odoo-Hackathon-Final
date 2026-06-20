@@ -15,7 +15,7 @@ export default function Signup() {
             </div>
           </div>
 
-          <h1 className="text-3xl sm:text-4xl font-bold text-slate-950">
+          <h1 className="text-3xl sm:text-4xl font-bold" style={{ color: "#121B35" }}>
             Create your account
           </h1>
 
