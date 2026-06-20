@@ -22,6 +22,7 @@ import { ordersRouter }     from "./routes/orders.ts";
 import { couponsRouter }    from "./routes/coupons.ts";
 import { kdsRouter }        from "./routes/kds.ts";
 import { reportsRouter }    from "./routes/reports.ts";
+import { authRouter }       from "./routes/auth.route.ts";
 import { selfOrderRouter }  from "./modules/self-order/index.ts";
 import { displayRouter }    from "./modules/customer-display/index.ts";
 
@@ -47,6 +48,7 @@ app.use(
 app.get("/", (c) => c.json({ status: "ok", message: "Cafe POS API is running" }));
 
 app.route("/",                         healthRouter);
+app.route("/",                         authRouter);
 app.route("/api",                      categoriesRouter);
 app.route("/api",                      productsRouter);
 app.route("/api",                      floorsRouter);

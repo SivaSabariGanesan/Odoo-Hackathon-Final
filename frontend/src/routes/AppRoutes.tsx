@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-
+import { AuthProvider } from "../context/AuthContext";
 import Login from "../pages/auth/Login";
 import Signup from "../pages/auth/Signup";
 
@@ -37,10 +37,11 @@ import Signup from "../pages/auth/Signup";
 export default function AppRouter() {
   return (
     <BrowserRouter>
-      <Routes>
+      <AuthProvider>
+        <Routes>
 
-        <Route path="/" element={<Login />} />
-        <Route path="/signup" element={<Signup />} />
+          <Route path="/" element={<Login />} />
+          <Route path="/signup" element={<Signup />} />
 
         {/* <Route path="/employee/session" element={<POSSession />} />
         <Route path="/employee/order" element={<POSOrder />} />
@@ -73,7 +74,8 @@ export default function AppRouter() {
         <Route path="/self-order/confirmed" element={<OrderConfirmed />} />
         <Route path="/self-order/track" element={<TrackOrder />} /> */} 
 
-      </Routes>
+        </Routes>
+      </AuthProvider>
     </BrowserRouter>
   );
 }

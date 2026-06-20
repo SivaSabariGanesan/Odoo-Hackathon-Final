@@ -35,7 +35,9 @@ router.openapi(
       );
       return created(c, result);
     } catch (e: any) {
-      return err(c, e.message, e.status ?? 400);
+      const status = e.status ?? 400;
+      const message = e.message ?? "Signup failed";
+      return err(c, status, status === 409 ? "EMAIL_ALREADY_REGISTERED" : "BAD_REQUEST", message);
     }
   }
 );
@@ -58,7 +60,9 @@ router.openapi(
       );
       return ok(c, result);
     } catch (e: any) {
-      return err(c, e.message, e.status ?? 400);
+      const status = e.status ?? 400;
+      const message = e.message ?? "Login failed";
+      return err(c, status, status === 401 ? "UNAUTHORIZED" : status === 403 ? "FORBIDDEN" : "BAD_REQUEST", message);
     }
   }
 );
@@ -81,7 +85,8 @@ router.openapi(
       );
       return ok(c, result);
     } catch (e: any) {
-      return err(c, e.message, e.status ?? 400);
+      const status = e.status ?? 400;
+      return err(c, status, status === 401 ? "UNAUTHORIZED" : "BAD_REQUEST", e.message ?? "Token refresh failed");
     }
   }
 );
@@ -100,7 +105,7 @@ router.openapi(
       await authService.logout(refreshToken);
       return ok(c, { message: "Logged out successfully" });
     } catch (e: any) {
-      return err(c, e.message, e.status ?? 400);
+      return err(c, 400, "BAD_REQUEST", e.message ?? "Logout failed");
     }
   }
 );
@@ -139,7 +144,8 @@ router.openapi(
       await authService.changePassword(user.id as bigint, input);
       return ok(c, { message: "Password updated successfully" });
     } catch (e: any) {
-      return err(c, e.message, e.status ?? 400);
+      const status = e.status ?? 400;
+      return err(c, status, status === 400 ? "INVALID_PASSWORD" : "BAD_REQUEST", e.message ?? "Failed to change password");
     }
   }
 );
