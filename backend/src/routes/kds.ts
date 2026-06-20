@@ -1,5 +1,7 @@
 import { createRoute, z } from "@hono/zod-openapi";
 import { createRouter } from "../lib/openapi.ts";
+import { authenticate } from "../middleware/authenticate.ts";
+import { authorize } from "../middleware/authorize.ts";
 import * as svc from "../services/kds.service.ts";
 import { ok, notFound, conflict } from "../utils/response.ts";
 
@@ -31,6 +33,9 @@ const TicketResponse = z.object({
 }).passthrough();
 
 const router = createRouter();
+
+// KDS routes require authentication — Kitchen, Cashier, or Admin can access
+router.use("/kds/*", authenticate, authorize(["ADMIN", "CASHIER", "KITCHEN"]));
 
 // GET /kds/tickets
 router.openapi(

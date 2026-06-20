@@ -1,9 +1,14 @@
 import { createRoute, z } from "@hono/zod-openapi";
 import { createRouter } from "../../../lib/openapi.ts";
+import { authenticate } from "../../../middleware/authenticate.ts";
+import { authorize } from "../../../middleware/authorize.ts";
 import { customerDisplayService } from "../services/display.service.ts";
 import { displayStateUpdateSchema, displayStateResponseSchema } from "../validators/display.schema.ts";
 
 const router = createRouter();
+
+// State update (POS pushing new state) requires staff auth
+router.use("/terminal/:terminalId/state", authenticate, authorize(["ADMIN", "CASHIER"]));
 
 router.openapi(
   createRoute({

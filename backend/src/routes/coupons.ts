@@ -1,5 +1,6 @@
 import { createRoute, z } from "@hono/zod-openapi";
 import { createRouter } from "../lib/openapi.ts";
+import { authenticate } from "../middleware/authenticate.ts";
 import { db } from "../db/index.ts";
 import { orders } from "../db/schema/index.ts";
 import { eq } from "drizzle-orm";
@@ -21,6 +22,9 @@ const PromotionResult = z.object({
 });
 
 const router = createRouter();
+
+// Coupon routes require authentication
+router.use("/coupons/*", authenticate);
 
 // POST /coupons/validate
 router.openapi(

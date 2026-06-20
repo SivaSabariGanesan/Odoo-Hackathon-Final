@@ -1,28 +1,42 @@
 import { db } from "../../../db/index.ts";
 import { orders, orderItems } from "../../../db/schema/08_orders.ts";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import { mappingService } from "./mapping.service.ts";
 
 export class OrderHistoryService {
   async getOrderHistory(tableId: string | number) {
-    const list = await db
-      .select({
-        id: orders.id,
-        publicId: orders.publicId,
-        orderNumber: orders.orderNumber,
-        status: orders.status,
-        grandTotal: orders.grandTotal,
-        createdAt: orders.createdAt,
-      })
-      .from(orders)
-      .where(and(eq(orders.tableId, BigInt(tableId)), eq(orders.source, "SELF_ORDER")))
-      .orderBy(desc(orders.createdAt));
+    const list = await db.query.orders.findMany({
+      where: eq(orders.tableId, BigInt(tableId)),
+      with: {
+        items: {
+          columns: {
+            productName: true,
+            quantity: true,
+            lineTotal: true,
+          },
+        },
+      },
+      columns: {
+        id: true,
+        publicId: true,
+        orderNumber: true,
+        status: true,
+        grandTotal: true,
+        createdAt: true,
+      },
+      orderBy: [desc(orders.createdAt)],
+    });
 
     return list.map(o => ({
-      ...o,
+      id: o.publicId,
+      orderNumber: o.orderNumber,
+      status: o.status,
+      grandTotal: o.grandTotal,
+      createdAt: o.createdAt,
       customerStatus: mappingService.mapOrderStatusToCustomerFacing(o.status),
-      id: undefined // hide internal ID
+      items: o.items,
     }));
+  }
   }
 
   async getOrderDetail(tableId: string | number, orderPublicId: string) {

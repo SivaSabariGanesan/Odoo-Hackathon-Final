@@ -10,7 +10,9 @@ const SessionResponse = z.object({
   id: z.any(), publicId: z.string().uuid(),
   status: z.enum(["OPEN", "CLOSED"]),
   openingCash: z.string(), closingCash: z.string().nullable(),
+  closingSaleAmount: z.string().nullable().optional(),
   openedAt: z.string().datetime(), closedAt: z.string().datetime().nullable(),
+  openedBy: z.object({ publicId: z.string(), name: z.string() }).nullable().optional(),
 }).passthrough();
 
 const router = createRouter();

@@ -154,14 +154,23 @@ export async function getOrderByPublicId(publicId: string) {
   });
 }
 
-// ─── Guard: only DRAFT orders are mutable ────────────────────────────────────
+// ─── Guard: order must be mutable ────────────────────────────────────────────
+//
+// An order is mutable if it has not yet been paid, cancelled, or locked for
+// payment processing. Specifically:
+//   - DRAFT, SENT_TO_KITCHEN, PREPARING, READY  → mutable (adding items is allowed)
+//   - PAYMENT_PENDING                            → locked (checkout in progress)
+//   - PAID, CANCELLED                            → terminal (no changes allowed)
+//
+// The function is still named requireDraft for back-compat but the semantics
+// are now "not terminal/locked".
 
 async function requireDraft(orderId: bigint) {
   const order = await db.query.orders.findFirst({ where: eq(orders.id, orderId) });
   if (!order) return { error: "NOT_FOUND" as const };
   if (order.status === "PAID") return { error: "ORDER_ALREADY_PAID" as const };
   if (order.status === "CANCELLED") return { error: "ORDER_CANCELLED" as const };
-  if (order.status !== "DRAFT") return { error: "ORDER_NOT_DRAFT" as const };
+  if (order.status === "PAYMENT_PENDING") return { error: "ORDER_NOT_DRAFT" as const };
   return { order };
 }
 
@@ -391,7 +400,11 @@ export async function sendToKitchen(orderId: bigint) {
   return { ticket };
 }
 
-// ─── Mark order paid (entry point for Siva's payment module) ─────────────────
+// ─── Mark order paid (entry point for legacy /orders/:id/payments route) ─────
+//
+// This is called directly from the orders route when payment details are
+// supplied inline. It inserts the payments row AND flips the order status
+// in a single locked transaction.
 
 export async function markOrderPaid(
   orderId: bigint,
@@ -437,29 +450,63 @@ export async function markOrderPaid(
       paidAt: new Date(),
     });
 
-    // Flip order status
-    await tx.update(orders)
-      .set({ status: "PAID", paidAt: new Date(), updatedAt: new Date() })
-      .where(eq(orders.id, orderId));
-
-    await tx.update(kitchenTickets)
-      .set({ status: "COMPLETED", completedAt: new Date(), updatedAt: new Date() })
-      .where(and(eq(kitchenTickets.orderId, orderId), sql`status != 'CANCELLED'`));
-
-    emit("order_completed", {
-      orderId: lockedOrder.public_id,
-      paidAt: new Date().toISOString(),
-    });
-
-    // Broadcast payment completion to KDS clients
-    broadcastPaymentCompleted(lockedOrder.public_id as string, "");
-
-    if (lockedOrder.table_id) {
-      await emitTableOccupancyChanged(BigInt(lockedOrder.table_id), false);
-    }
+    await _finalizeOrderStatus(tx, orderId, lockedOrder);
 
     return { success: true as const };
   });
+}
+
+// ─── Finalize order as paid (called by payments.service after it has already
+//     written the payments row in its own transaction) ────────────────────────
+//
+// Does NOT insert into payments — that has already been done by the caller.
+// Only flips order status, completes kitchen tickets, broadcasts, and frees
+// the table. Uses a row-level lock to be safe against concurrent calls.
+
+export async function finalizeOrderAsPaid(orderId: bigint) {
+  return db.transaction(async (tx) => {
+    const lockResult = await tx.execute(
+      sql`SELECT id, status, table_id, public_id, grand_total FROM orders WHERE id = ${orderId} FOR UPDATE`,
+    );
+    const lockedOrder = lockResult.rows[0] as
+      | { id: bigint; status: string; table_id: bigint | null; public_id: string; grand_total: string }
+      | undefined;
+
+    if (!lockedOrder) return { error: "NOT_FOUND" as const };
+    if (lockedOrder.status === "PAID") return { error: "ORDER_ALREADY_PAID" as const };
+    if (lockedOrder.status === "CANCELLED") return { error: "ORDER_CANCELLED" as const };
+
+    await _finalizeOrderStatus(tx, orderId, lockedOrder);
+
+    return { success: true as const };
+  });
+}
+
+// ─── Shared status-flip logic used by both payment paths ────────────────────
+
+async function _finalizeOrderStatus(
+  tx: any,
+  orderId: bigint,
+  lockedOrder: { table_id: bigint | null; public_id: string },
+) {
+  await tx.update(orders)
+    .set({ status: "PAID", paidAt: new Date(), updatedAt: new Date() })
+    .where(eq(orders.id, orderId));
+
+  await tx.update(kitchenTickets)
+    .set({ status: "COMPLETED", completedAt: new Date(), updatedAt: new Date() })
+    .where(and(eq(kitchenTickets.orderId, orderId), sql`status != 'CANCELLED'`));
+
+  emit("order_completed", {
+    orderId: lockedOrder.public_id,
+    paidAt: new Date().toISOString(),
+  });
+
+  broadcastPaymentCompleted(lockedOrder.public_id as string, "");
+
+  if (lockedOrder.table_id) {
+    await emitTableOccupancyChanged(BigInt(lockedOrder.table_id), false);
+  }
 }
 
 // ─── Cancel order ─────────────────────────────────────────────────────────────

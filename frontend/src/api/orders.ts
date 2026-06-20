@@ -1,6 +1,6 @@
 import { api } from "./axios";
 
-export type OrderStatus = "DRAFT" | "SENT_TO_KITCHEN" | "PREPARING" | "READY" | "PAID" | "CANCELLED";
+export type OrderStatus = "DRAFT" | "SENT_TO_KITCHEN" | "PREPARING" | "READY" | "PAYMENT_PENDING" | "PAID" | "CANCELLED";
 export type OrderType   = "DINE_IN" | "TAKEAWAY";
 export type OrderSource = "POS" | "SELF_ORDER";
 

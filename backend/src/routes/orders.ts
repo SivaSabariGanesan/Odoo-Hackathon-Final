@@ -1,5 +1,7 @@
 import { createRoute, z } from "@hono/zod-openapi";
 import { createRouter } from "../lib/openapi.ts";
+import { authenticate } from "../middleware/authenticate.ts";
+import { authorize } from "../middleware/authorize.ts";
 import { db } from "../db/index.ts";
 import { orders, floorTables, posSessions, orderItems, customers, products } from "../db/schema/index.ts";
 import { eq } from "drizzle-orm";
@@ -11,7 +13,7 @@ const ErrorResponse = z.object({ success: z.literal(false), error: z.object({ co
 
 const OrderResponse = z.object({
   id: z.any(), publicId: z.string().uuid(), orderNumber: z.string(),
-  status: z.enum(["DRAFT", "SENT_TO_KITCHEN", "PREPARING", "READY", "PAID", "CANCELLED"]),
+  status: z.enum(["DRAFT", "SENT_TO_KITCHEN", "PREPARING", "READY", "PAYMENT_PENDING", "PAID", "CANCELLED"]),
   type: z.enum(["DINE_IN", "TAKEAWAY"]), source: z.enum(["POS", "SELF_ORDER"]),
   subtotal: z.string(), taxAmount: z.string(), discountAmount: z.string(), grandTotal: z.string(),
 }).passthrough();
@@ -39,6 +41,10 @@ function mapError(c: any, error: string | undefined) {
 }
 
 const router = createRouter();
+
+// All order routes require authentication
+router.use("/orders",                        authenticate, authorize(["ADMIN", "CASHIER"]));
+router.use("/orders/*",                      authenticate, authorize(["ADMIN", "CASHIER"]));
 
 // GET /orders
 router.openapi(
@@ -119,7 +125,7 @@ router.openapi(
   }),
   async (c) => {
     const input = c.req.valid("json");
-    const user = (c as any).get?.("user") ?? (c.req as any).user;
+    const user = c.get("user");
     let tableId: bigint | undefined;
     let sessionId: bigint | undefined;
     if (input.tableId) {
@@ -150,7 +156,7 @@ router.openapi(
     },
   }),
   async (c) => {
-    const user = (c as any).get?.("user") ?? (c.req as any).user;
+    const user = c.get("user");
     const t = await db.query.floorTables.findFirst({ where: eq(floorTables.publicId, c.req.param("tableId")), columns: { id: true } });
     if (!t) return notFound(c, "Table not found") as any;
     const result = await svc.getOrCreateDraftForTable(t.id, undefined, user ? BigInt(user.id) : undefined);
@@ -458,7 +464,7 @@ router.openapi(
     const result = await receiptSvc.sendReceiptEmail(orderId, email);
     if ("error" in result) return mapError(c, result.error) as any;
     
-    return ok(c, { message: result.message });
+    return ok(c, { message: "Receipt emailed successfully" });
   },
 );
 

@@ -14,8 +14,7 @@ import {
 } from "../db/schema/index.ts";
 import { decrypt } from "../utils/encrypt.ts";
 import { emit } from "../utils/events.ts";
-import { emitTableOccupancyChanged } from "./floor.service.ts";
-import { markOrderPaid } from "./order.service.ts";
+import { finalizeOrderAsPaid } from "./order.service.ts";
 import type {
   CashPaymentInput,
   CardPaymentInput,
@@ -222,8 +221,9 @@ export async function processCashPayment(
 
     return { transaction: updatedTxn, change, grandTotal };
   }).then(async (result) => {
-    // Mark order paid outside inner transaction (uses its own db.transaction internally)
-    await markOrderPaid(result.transaction.orderId, {});
+    // Payments row already written inside the transaction above.
+    // finalizeOrderAsPaid only flips order status + broadcasts — no duplicate insert.
+    await finalizeOrderAsPaid(result.transaction.orderId);
     await _generateReceipt(result.transaction.orderId);
     emit("payment_success", { transactionId: result.transaction.publicId, method: "CASH" });
     return result;
@@ -284,7 +284,7 @@ export async function processCardPayment(
 
     return { transaction: updatedTxn };
   }).then(async (result) => {
-    await markOrderPaid(result.transaction.orderId, {});
+    await finalizeOrderAsPaid(result.transaction.orderId);
     await _generateReceipt(result.transaction.orderId);
     emit("payment_success", { transactionId: result.transaction.publicId, method: "CARD" });
     return result;
@@ -476,7 +476,7 @@ export async function handleCashfreeWebhook(
       gatewayResponse: rawBody, status: "SUCCESS", paidAt: new Date(),
     });
 
-    await markOrderPaid(txn.orderId, {});
+    await finalizeOrderAsPaid(txn.orderId);
     await _generateReceipt(txn.orderId);
 
     await audit({

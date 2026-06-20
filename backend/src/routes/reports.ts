@@ -1,5 +1,6 @@
 import { createRoute, z } from "@hono/zod-openapi";
 import { createRouter } from "../lib/openapi.ts";
+import { authenticate } from "../middleware/authenticate.ts";
 import * as svc from "../services/reports.service.ts";
 import { ok, badRequest } from "../utils/response.ts";
 
@@ -24,6 +25,9 @@ const KpiResponse = z.object({
 });
 
 const router = createRouter();
+
+// Reports require authentication — any staff role can view
+router.use("/reports/*", authenticate);
 
 // GET /reports/kpis
 router.openapi(

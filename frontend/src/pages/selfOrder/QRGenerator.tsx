@@ -1,26 +1,33 @@
-import { useRef } from "react";
-import { Download, QrCode, ArrowLeft } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Download, QrCode, ArrowLeft, Loader2, AlertCircle } from "lucide-react";
 import { Link } from "react-router-dom";
 import { ROUTES } from "../../routes/paths";
-
-// Mock tables — in real app pulled from floor/table store
-const TABLES = [
-  { id: 1, name: "Table 1", token: "asdfghhjkl" },
-  { id: 2, name: "Table 2", token: "zxcvbnmqwe" },
-  { id: 3, name: "Table 3", token: "poiuytrewq" },
-  { id: 4, name: "Table 4", token: "lkjhgfdsaz" },
-  { id: 5, name: "Table 5", token: "mnbvcxzasd" },
-];
+import { fetchFloors, type Floor } from "../../api/floors";
 
 const BASE_URL = window.location.origin;
 
-function tableQRUrl(token: string, size = 140) {
-  const url = `${BASE_URL}/s/${token}`;
+function tableQRUrl(qrToken: string, size = 140) {
+  // QR encodes the splash URL with the table's qrToken as a query param.
+  // The Splash page reads ?token= and calls resolveTable(token).
+  const url = `${BASE_URL}${ROUTES.SPLASH}?token=${qrToken}`;
   return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(url)}`;
 }
 
 export default function QRGenerator() {
-  const printRef = useRef<HTMLDivElement>(null);
+  const [floors,  setFloors]  = useState<Floor[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error,   setError]   = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchFloors()
+      .then(setFloors)
+      .catch(() => setError("Failed to load floors and tables"))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const allTables = floors.flatMap(f =>
+    f.tables.map(t => ({ ...t, floorName: f.name })),
+  );
 
   function handleDownload() {
     window.print();
@@ -28,7 +35,6 @@ export default function QRGenerator() {
 
   return (
     <div className="min-h-screen bg-[#F5F5F7]">
-
       {/* ── Header ── */}
       <header className="bg-white border-b border-gray-200 px-4 sm:px-8 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -54,7 +60,6 @@ export default function QRGenerator() {
 
       {/* ── Content ── */}
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 space-y-4">
-
         {/* Info banner */}
         <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 flex items-start gap-2">
           <QrCode className="w-4 h-4 text-blue-500 mt-0.5 shrink-0" />
@@ -62,96 +67,71 @@ export default function QRGenerator() {
             <p className="text-xs font-semibold text-blue-700">Auto-generated per table</p>
             <p className="text-xs text-blue-600 mt-0.5">
               Each QR encodes a unique token linked to its table.
-              e.g. <span className="font-mono font-semibold">{BASE_URL}/s/asdfghhjkl</span> → Table 1
+              Scanning opens:{" "}
+              <span className="font-mono font-semibold">{BASE_URL}{ROUTES.SPLASH}?token=&lt;tableToken&gt;</span>
             </p>
           </div>
         </div>
 
-        {/* QR grid card */}
-        <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
-          <div className="px-5 py-4 border-b border-gray-100">
-            <p className="text-sm font-bold" style={{ color: "#121B35" }}>All Tables</p>
-            <p className="text-xs text-gray-400 mt-0.5">{TABLES.length} tables · scan to open mobile order page</p>
+        {loading ? (
+          <div className="flex items-center justify-center py-20 text-gray-400">
+            <Loader2 className="w-5 h-5 animate-spin mr-2" />Loading tables…
           </div>
-
-          {/* Print target */}
-          <div ref={printRef} className="p-5">
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-5">
-              {TABLES.map(table => (
-                <div key={table.id}
-                  className="flex flex-col items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl p-4 hover:border-[#714B67]/30 hover:shadow-sm transition">
-                  {/* Table name */}
-                  <p className="text-xs font-semibold text-gray-600">{table.name}</p>
-
-                  {/* QR image */}
-                  <div className="bg-white border border-gray-200 p-2 rounded-lg">
-                    <img
-                      src={tableQRUrl(table.token, 120)}
-                      alt={`QR for ${table.name}`}
-                      className="w-28 h-28 rounded"
-                    />
-                  </div>
-
-                  {/* Token */}
-                  <p className="text-[10px] text-gray-400 font-mono text-center break-all">
-                    /s/{table.token.slice(0, 8)}…
+        ) : error ? (
+          <div className="flex items-center gap-2 text-red-500 py-10 justify-center">
+            <AlertCircle className="w-5 h-5" />{error}
+          </div>
+        ) : allTables.length === 0 ? (
+          <div className="text-center text-gray-400 py-10">
+            <p className="text-sm">No active tables found.</p>
+            <Link to={ROUTES.FLOOR_TABLES}
+              className="text-[#714B67] text-xs font-semibold mt-2 block hover:underline">
+              Set up floors and tables →
+            </Link>
+          </div>
+        ) : (
+          <>
+            {floors.map(floor => (
+              <div key={floor.publicId} className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+                <div className="px-5 py-4 border-b border-gray-100">
+                  <p className="text-sm font-bold" style={{ color: "#121B35" }}>{floor.name}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {floor.tables.filter(t => t.isActive).length} active tables
                   </p>
                 </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Single QR preview */}
-        <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
-          <div className="px-5 py-4 border-b border-gray-100">
-            <p className="text-sm font-bold" style={{ color: "#121B35" }}>Scan Preview</p>
-            <p className="text-xs text-gray-400 mt-0.5">
-              Scanning opens: <span className="font-mono text-[#714B67]">{BASE_URL}/s/{TABLES[0].token}</span>
-            </p>
-          </div>
-          <div className="p-5 flex items-start gap-6 flex-wrap">
-            <div className="flex flex-col items-center gap-2">
-              <p className="text-xs font-semibold text-gray-600">Table 1</p>
-              <div className="bg-white border-2 border-[#714B67]/20 p-3 rounded-xl shadow-sm">
-                <img
-                  src={tableQRUrl(TABLES[0].token, 160)}
-                  alt="Table 1 QR"
-                  className="w-36 h-36 rounded-lg"
-                />
+                <div className="p-5">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-5">
+                    {floor.tables.filter(t => t.isActive).map(table => (
+                      <div key={table.publicId}
+                        className="flex flex-col items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl p-4 hover:border-[#714B67]/30 hover:shadow-sm transition">
+                        <p className="text-xs font-semibold text-gray-600">
+                          Table {table.tableNumber}
+                        </p>
+                        <div className="bg-white border border-gray-200 p-2 rounded-lg">
+                          <img
+                            src={tableQRUrl((table as any).qrToken ?? table.publicId, 120)}
+                            alt={`QR for Table ${table.tableNumber}`}
+                            className="w-28 h-28 rounded"
+                          />
+                        </div>
+                        <p className="text-[10px] text-gray-400 font-mono text-center">
+                          {floor.name} · {table.seats} seats
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
-            </div>
-            <div className="flex-1 min-w-[200px] pt-1">
-              <p className="text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">URL Format</p>
-              <div className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 font-mono text-sm text-[#714B67] break-all">
-                {BASE_URL}/s/{TABLES[0].token}
-              </div>
-              <div className="mt-3 flex items-center gap-4 text-xs text-gray-400">
-                <span className="flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-blue-400 inline-block" />
-                  Domain
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" />
-                  /s/ Self-order prefix
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-[#714B67] inline-block" />
-                  Unique token
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-
+            ))}
+          </>
+        )}
       </div>
 
-      {/* ── Print styles ── */}
+      {/* Print styles */}
       <style>{`
         @media print {
-          body * { visibility: hidden; }
-          #qr-print, #qr-print * { visibility: visible; }
-          #qr-print { position: absolute; left: 0; top: 0; width: 100%; }
+          header, .no-print { display: none !important; }
+          body { background: white; }
         }
       `}</style>
     </div>

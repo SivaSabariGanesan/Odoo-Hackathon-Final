@@ -254,8 +254,8 @@ export async function getExportData(params: {
   }
 
   if (params.type === "products") {
-    return getTopProducts({ period: "today", from: from.toISOString(), to: to.toISOString(), limit: 1000 });
+    return getTopProducts({ period: params.period, from: params.from, to: params.to, limit: 1000 });
   }
 
-  return getTopCategories({ period: "today", from: from.toISOString(), to: to.toISOString(), limit: 100 });
+  return getTopCategories({ period: params.period, from: params.from, to: params.to, limit: 100 });
 }

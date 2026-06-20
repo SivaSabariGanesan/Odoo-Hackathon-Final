@@ -1,5 +1,6 @@
 import { createRoute, z } from "@hono/zod-openapi";
 import { createRouter } from "../lib/openapi.ts";
+import { authenticate } from "../middleware/authenticate.ts";
 import * as svc from "../services/product.service.ts";
 import { ok, created, notFound, conflict, err } from "../utils/response.ts";
 
@@ -60,6 +61,10 @@ const ErrorResponse = z.object({
 });
 
 const router = createRouter();
+
+// All product routes require authentication
+router.use("/products",       authenticate);
+router.use("/products/*",     authenticate);
 
 // GET /products
 router.openapi(
