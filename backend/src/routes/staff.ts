@@ -177,4 +177,24 @@ router.openapi(
     return ok(c, { deleted: true });
   },
 );
+
+// PATCH /users/:id/archive — spec-compliant alias for POST /staff/:id/archive
+router.openapi(
+  createRoute({
+    method: "patch", path: "/users/{id}/archive",
+    tags: ["Staff"],
+    summary: "Archive a user/staff member (spec alias for POST /staff/:id/archive)",
+    request: { params: z.object({ id: z.string().uuid() }) },
+    responses: {
+      200: { description: "Archived", content: { "application/json": { schema: z.object({ success: z.literal(true), data: z.object({ success: z.boolean() }) }) } } },
+      404: { description: "Not found", content: { "application/json": { schema: ErrorResponse } } },
+    },
+  }),
+  async (c) => {
+    const result = await svc.archiveStaff(c.req.param("id"));
+    if (!result.found) return notFound(c, "Staff member not found") as any;
+    return ok(c, { success: true });
+  },
+);
+
 export { router as staffRouter };

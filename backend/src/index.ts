@@ -4,6 +4,7 @@ import { serve } from "@hono/node-server";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import { prettyJSON } from "hono/pretty-json";
+import { attachWebSocketServer } from "./routes/ws.ts";
 
 // ─── BigInt serialization fix ─────────────────────────────────────────────────
 (BigInt.prototype as any).toJSON = function () {
@@ -69,6 +70,8 @@ app.route("/",                         paymentsRouter);
 app.route("/",                         devRouter);
 app.route("/api/v1/self-order",        selfOrderRouter);
 app.route("/api/v1/customer-display",  displayRouter);
+app.route("/api/v1",                   customerAuthRouter);
+app.route("/api",                      promotionsRouter);
 
 // ─── OpenAPI + Swagger UI ─────────────────────────────────────────────────────
 registerDocs(app);
@@ -90,10 +93,13 @@ app.onError((err, c) => {
 // ─── Start ────────────────────────────────────────────────────────────────────
 const PORT = Number(process.env["PORT"] ?? 3000);
 
-serve({ fetch: app.fetch, port: PORT }, () => {
+const server = serve({ fetch: app.fetch, port: PORT }, () => {
   console.log(`🚀  Server    → http://localhost:${PORT}`);
   console.log(`📖  Swagger   → http://localhost:${PORT}/swagger`);
   console.log(`📄  OpenAPI   → http://localhost:${PORT}/doc`);
 });
+
+// Attach WebSocket server to the same HTTP server
+attachWebSocketServer(server as any);
 
 export default app;
