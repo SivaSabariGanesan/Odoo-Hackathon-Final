@@ -35,6 +35,9 @@ export const posSessions = pgTable("pos_sessions", {
   closingCash:  numeric("closing_cash", { precision: 12, scale: 2 }),   // declared by cashier
   actualCash:   numeric("actual_cash", { precision: 12, scale: 2 }),    // system calculated
 
+  // Aggregated total of all paid orders in the session (written by closeSession())
+  closingSaleAmount: numeric("closing_sale_amount", { precision: 12, scale: 2 }),
+
   notes:        text("notes"),
 
   openedAt:     timestamp("opened_at", { withTimezone: true }).notNull().default(sql`now()`),
