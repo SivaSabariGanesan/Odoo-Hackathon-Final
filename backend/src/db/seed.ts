@@ -183,11 +183,11 @@ async function seed() {
       },
       {
         publicId: IDS.staff.manager,
-        name: "Demo Manager",
-        email: "manager@demo.cafe",
+        name: "Demo Kitchen Staff",
+        email: "kitchen@demo.cafe",
         phone: "+919800000003",
         passwordHash,
-        role: "MANAGER",
+        role: "KITCHEN",
         status: "ACTIVE",
       },
       {

@@ -13,6 +13,16 @@ export interface OrderItem {
   totalPrice: string;
   notes: string | null;
   kitchenState: string | null;
+  product?: { publicId: string; name?: string; imageUrl?: string | null };
+}
+
+/** Resolve the product's public UUID from an order line (API may nest it under `product`). */
+export function orderItemProductPublicId(item: OrderItem): string {
+  return item.product?.publicId ?? item.productId;
+}
+
+export function findOrderItemForProduct(order: Order, productPublicId: string): OrderItem | undefined {
+  return order.items?.find(i => orderItemProductPublicId(i) === productPublicId);
 }
 
 export interface Order {

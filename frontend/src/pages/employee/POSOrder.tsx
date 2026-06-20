@@ -23,7 +23,10 @@ import {
   type PaymentMethodType,
 } from "../../api/payments";
 import { listCategories, listProducts, type Category, type Product } from "../../api/products";
-import { createOrder, addItemToOrder, applyCoupon as applyCouponApi } from "../../api/orders";
+import {
+  createOrder, addItemToOrder, updateOrderItem, removeOrderItem, getOrder,
+  applyCoupon as applyCouponApi, findOrderItemForProduct, type Order,
+} from "../../api/orders";
 
 interface CartItem {
   id: string;           // product publicId
@@ -168,7 +171,7 @@ function CouponModal({
   orderId,
 }: {
   onClose: () => void;
-  onApply: (code: string, discountAmount: number) => void;
+  onApply: (code: string, discountAmount: number, order: Order) => void;
   orderId?: string;
 }) {
   const [code, setCode] = useState("");
@@ -186,7 +189,7 @@ function CouponModal({
     try {
       const updatedOrder = await applyCouponApi(orderId, upper);
       const discount = parseFloat(updatedOrder.discountAmount ?? "0");
-      onApply(upper, discount);
+      onApply(upper, discount, updatedOrder);
       onClose();
     } catch (e: any) {
       const reason = e?.response?.data?.error?.code ?? "";
@@ -516,6 +519,12 @@ export default function POSOrder() {
   const [promoOpen,  setPromoOpen]      = useState(false);
   const [receiptOpen, setReceiptOpen]   = useState(false);
   const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discountAmount: number } | null>(null);
+  const [orderTotals, setOrderTotals] = useState<{
+    subtotal: number;
+    tax: number;
+    discount: number;
+    total: number;
+  } | null>(null);
   // Table selector
   const [tableOpen, setTableOpen]       = useState(false);
   const [selectedTable, setSelectedTable] = useState<{ floor: string; floorName: string; table: string; tableNumber: string } | null>(null);
@@ -536,8 +545,37 @@ export default function POSOrder() {
   // Auto promos placeholder (future: fetch from /coupons/eligible/:orderId)
   const AUTO_PROMOS: AutoPromo[] = [];
 
-  function applyLocalCoupon(code: string, discountAmount: number) {
+  function applyLocalCoupon(code: string, discountAmount: number, order?: Order) {
     setAppliedCoupon({ code, discountAmount });
+    if (order) syncOrderFromBackend(order);
+  }
+
+  function syncOrderFromBackend(order: Order) {
+    setOrderTotals({
+      subtotal: parseFloat(order.subtotal),
+      tax: parseFloat(order.taxAmount),
+      discount: parseFloat(order.discountAmount),
+      total: parseFloat(order.grandTotal),
+    });
+    const discount = parseFloat(order.discountAmount);
+    setAppliedCoupon(prev =>
+      prev && discount > 0 ? { ...prev, discountAmount: discount } : prev,
+    );
+    if (order.items?.length) {
+      setCart(prev =>
+        prev.map(cartItem => {
+          const backendItem = findOrderItemForProduct(order, cartItem.id);
+          if (!backendItem) return cartItem;
+          return {
+            ...cartItem,
+            orderItemId: backendItem.publicId,
+            qty: backendItem.quantity,
+            unitPrice: parseFloat(backendItem.unitPrice),
+            name: backendItem.productName,
+          };
+        }),
+      );
+    }
   }
 
   // Load enabled payment methods on mount
@@ -565,10 +603,7 @@ export default function POSOrder() {
         const newOrder = await createOrder({ type: "TAKEAWAY", source: "POS" });
         orderId = newOrder.publicId;
         setActiveOrderId(orderId);
-        // Add all cart items (they weren't synced yet)
-        for (const item of cart) {
-          await addItemToOrder(orderId, item.id, item.qty);
-        }
+        // Items are always synced eagerly in addToCart, nothing to re-add here
       }
 
       toast.loading("Processing payment…", { id: "checkout" });
@@ -590,6 +625,7 @@ export default function POSOrder() {
         setCart([]);
         setActiveOrderId(null);
         setAppliedCoupon(null);
+        setOrderTotals(null);
       } else if (selectedMethod.type === "CARD") {
         if (!cardRef.trim()) {
           toast.error("Enter card transaction reference");
@@ -602,6 +638,7 @@ export default function POSOrder() {
         setCart([]);
         setActiveOrderId(null);
         setAppliedCoupon(null);
+        setOrderTotals(null);
       } else if (selectedMethod.type === "CASHFREE") {
         const cfResult = await initiateCashfreePayment(orderId, txn.transactionId);
         setCashfreeSession({
@@ -630,6 +667,7 @@ export default function POSOrder() {
             setCart([]);
             setActiveOrderId(null);
             setAppliedCoupon(null);
+            setOrderTotals(null);
             toast.success("Cashfree payment successful!");
           }
         });
@@ -713,27 +751,101 @@ export default function POSOrder() {
       }
     }
 
-    setCart(prev => {
-      const ex = prev.find(i => i.id === p.publicId);
-      if (ex) return prev.map(i => i.id === p.publicId ? { ...i, qty: i.qty + 1 } : i);
-      setSelectedItem(p.publicId);
-      return [...prev, { id: p.publicId, name: p.name, unitPrice: parseFloat(p.price), qty: 1 }];
-    });
+    // Check if this product already exists in the cart
+    const existing = cart.find(i => i.id === p.publicId);
+
+    if (existing) {
+      try {
+        const updatedOrder = existing.orderItemId
+          ? await updateOrderItem(orderId, existing.orderItemId, existing.qty + 1)
+          : await addItemToOrder(orderId, p.publicId, 1);
+        syncOrderFromBackend(updatedOrder);
+      } catch {
+        toast.error("Failed to update item");
+        return;
+      }
+    } else {
+      // New item — POST to backend to get orderItemId back
+      try {
+        const updatedOrder = await addItemToOrder(orderId, p.publicId, 1);
+        syncOrderFromBackend(updatedOrder);
+        const backendItem = findOrderItemForProduct(updatedOrder, p.publicId);
+        setCart(prev => [
+          ...prev,
+          {
+            id: p.publicId,
+            orderItemId: backendItem?.publicId,
+            name: p.name,
+            unitPrice: parseFloat(p.price),
+            qty: backendItem?.quantity ?? 1,
+          },
+        ]);
+        setSelectedItem(p.publicId);
+      } catch {
+        toast.error("Failed to add item");
+      }
+    }
   }
 
-  function updateQty(id: string, delta: number) {
-    setCart(prev => prev.map(i => i.id === id ? { ...i, qty: Math.max(1, i.qty + delta) } : i));
+  async function updateQty(id: string, delta: number) {
+    const item = cart.find(i => i.id === id);
+    if (!item) return;
+    const newQty = Math.max(1, item.qty + delta);
+    if (newQty === item.qty) return;
+
+    if (activeOrderId) {
+      try {
+        let updatedOrder: Order;
+        if (item.orderItemId) {
+          updatedOrder = await updateOrderItem(activeOrderId, item.orderItemId, newQty);
+        } else {
+          const order = await getOrder(activeOrderId);
+          const backendItem = findOrderItemForProduct(order, id);
+          if (backendItem) {
+            updatedOrder = await updateOrderItem(activeOrderId, backendItem.publicId, newQty);
+          } else {
+            updatedOrder = await addItemToOrder(activeOrderId, id, newQty);
+          }
+        }
+        syncOrderFromBackend(updatedOrder);
+      } catch {
+        toast.error("Failed to update quantity");
+        return;
+      }
+    } else {
+      setCart(prev => prev.map(i => i.id === id ? { ...i, qty: newQty } : i));
+    }
   }
 
-  function removeItem(id: string) {
+  async function removeItem(id: string) {
+    const item = cart.find(i => i.id === id);
+    if (!item) return;
+
+    if (activeOrderId) {
+      try {
+        let itemId = item.orderItemId;
+        if (!itemId) {
+          const order = await getOrder(activeOrderId);
+          itemId = findOrderItemForProduct(order, id)?.publicId;
+        }
+        if (itemId) {
+          const updatedOrder = await removeOrderItem(activeOrderId, itemId);
+          syncOrderFromBackend(updatedOrder);
+        }
+      } catch {
+        toast.error("Failed to remove item");
+        return;
+      }
+    }
     setCart(prev => prev.filter(i => i.id !== id));
     if (selectedItem === id) setSelectedItem(null);
   }
 
-  const subtotal = cart.reduce((s, i) => s + i.unitPrice * i.qty, 0);
-  const tax = Math.round(subtotal * 0.05);
-  const orderDiscount = appliedCoupon ? appliedCoupon.discountAmount : 0;
-  const total = subtotal + tax - orderDiscount;
+  const localSubtotal = cart.reduce((s, i) => s + i.unitPrice * i.qty, 0);
+  const subtotal = orderTotals?.subtotal ?? localSubtotal;
+  const tax = orderTotals?.tax ?? Math.round(localSubtotal * 0.05);
+  const orderDiscount = orderTotals?.discount ?? (appliedCoupon ? appliedCoupon.discountAmount : 0);
+  const total = orderTotals?.total ?? (localSubtotal + tax - orderDiscount);
 
   // ── Shared pane contents ──────────────────────────────────────
 

@@ -13,6 +13,50 @@ export interface EligiblePromotion {
   calculatedDiscount: number; // actual ₹ amount if applied
 }
 
+type PromotionDiscountInput = {
+  type: string;
+  discountValue: string;
+  minOrderAmount?: string | null;
+  triggerProductId?: bigint | null;
+  triggerQty?: number | null;
+};
+
+type OrderItemForDiscount = { productId: bigint; quantity: number };
+
+/** Compute the discount amount for a promotion against the current cart subtotal. */
+export function calculatePromotionDiscount(
+  promo: PromotionDiscountInput,
+  subtotal: number,
+  items: OrderItemForDiscount[] = [],
+): number | null {
+  if (subtotal <= 0) return null;
+
+  if (promo.type === "COUPON_PERCENTAGE") {
+    return Math.min((subtotal * Number(promo.discountValue)) / 100, subtotal);
+  }
+
+  if (promo.type === "COUPON_FIXED") {
+    if (promo.minOrderAmount && subtotal < Number(promo.minOrderAmount)) return null;
+    return Math.min(Number(promo.discountValue), subtotal);
+  }
+
+  if (promo.type === "AUTO_ORDER_AMOUNT") {
+    if (!promo.minOrderAmount || subtotal < Number(promo.minOrderAmount)) return null;
+    return Math.min(Number(promo.discountValue), subtotal);
+  }
+
+  if (promo.type === "AUTO_PRODUCT_QTY") {
+    if (!promo.triggerProductId || !promo.triggerQty) return null;
+    const matchingItem = items.find(
+      (i) => String(i.productId) === String(promo.triggerProductId),
+    );
+    if (!matchingItem || matchingItem.quantity < promo.triggerQty) return null;
+    return Math.min(Number(promo.discountValue), subtotal);
+  }
+
+  return null;
+}
+
 // ─── Validation (for the /coupons/validate endpoint — no side effects) ────────
 
 export async function validateCoupon(
@@ -43,10 +87,15 @@ export async function validateCoupon(
     return { valid: false, reason: "COUPON_NOT_ELIGIBLE", code };
   }
 
-  const calculatedDiscount =
-    promo.type === "COUPON_PERCENTAGE"
-      ? (subtotal * Number(promo.discountValue)) / 100
-      : Number(promo.discountValue);
+  const cartItems = await db.query.orderItems.findMany({
+    where: eq(orderItems.orderId, orderId),
+    columns: { productId: true, quantity: true },
+  });
+
+  const calculatedDiscount = calculatePromotionDiscount(promo, subtotal, cartItems);
+  if (calculatedDiscount === null) {
+    return { valid: false, reason: "COUPON_NOT_ELIGIBLE", code };
+  }
 
   return {
     valid: true,
@@ -56,7 +105,7 @@ export async function validateCoupon(
       name: promo.name,
       type: promo.type,
       discountValue: promo.discountValue,
-      calculatedDiscount: Math.min(calculatedDiscount, subtotal),
+      calculatedDiscount,
     },
   };
 }

@@ -7,7 +7,7 @@ const ErrorResponse = z.object({ success: z.literal(false), error: z.object({ co
 
 const StaffResponse = z.object({
   id: z.any(), publicId: z.string().uuid(), name: z.string(), email: z.string(),
-  role: z.enum(["ADMIN", "CASHIER", "MANAGER"]), status: z.enum(["ACTIVE", "INACTIVE", "ARCHIVED"]),
+  role: z.enum(["ADMIN", "CASHIER", "KITCHEN"]), status: z.enum(["ACTIVE", "INACTIVE", "ARCHIVED"]),
 }).passthrough();
 
 const CreateStaffBody = z.object({
@@ -15,7 +15,7 @@ const CreateStaffBody = z.object({
   email: z.string().email().openapi({ example: "arjun@cafe.com" }),
   password: z.string().min(8).openapi({ example: "secret123" }),
   phone: z.string().min(7).max(20).optional(),
-  role: z.enum(["ADMIN", "CASHIER", "MANAGER"]).optional().openapi({ example: "CASHIER" }),
+  role: z.enum(["ADMIN", "CASHIER", "KITCHEN"]).optional().openapi({ example: "CASHIER" }),
   pin: z.string().length(6).regex(/^\d{6}$/).optional().openapi({ example: "123456" }),
   avatarUrl: z.string().url().optional(),
 });
@@ -24,7 +24,7 @@ const UpdateStaffBody = z.object({
   name: z.string().min(1).max(100).optional(),
   phone: z.string().optional(),
   avatarUrl: z.string().url().optional(),
-  role: z.enum(["ADMIN", "CASHIER", "MANAGER"]).optional(),
+  role: z.enum(["ADMIN", "CASHIER", "KITCHEN"]).optional(),
   pin: z.string().length(6).regex(/^\d{6}$/).optional(),
 });
 
@@ -58,7 +58,7 @@ router.openapi(
     summary: "List staff members, filterable by role and status",
     request: {
       query: z.object({
-        role: z.enum(["ADMIN", "CASHIER", "MANAGER"]).optional(),
+        role: z.enum(["ADMIN", "CASHIER", "KITCHEN"]).optional(),
         status: z.enum(["ACTIVE", "INACTIVE", "ARCHIVED"]).optional(),
         search: z.string().optional(),
         page: z.string().optional(),

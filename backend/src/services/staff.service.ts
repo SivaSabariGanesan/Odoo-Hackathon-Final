@@ -11,7 +11,7 @@ export interface CreateStaffInput {
   email: string;
   password: string;
   phone?: string;
-  role?: "ADMIN" | "CASHIER" | "MANAGER";
+  role?: "ADMIN" | "CASHIER" | "KITCHEN";
   pin?: string;
   avatarUrl?: string;
 }
@@ -51,7 +51,7 @@ export async function createStaff(input: CreateStaffInput) {
 }
 
 export async function listStaff(params: {
-  role?: "ADMIN" | "CASHIER" | "MANAGER";
+  role?: "ADMIN" | "CASHIER" | "KITCHEN";
   status?: "ACTIVE" | "INACTIVE" | "ARCHIVED";
   search?: string;
   page?: number;

@@ -2,7 +2,7 @@ import { eq, and, sql } from "drizzle-orm";
 import { db } from "../db/index.ts";
 import { orders, orderItems, kitchenTickets, kitchenTicketItems, payments, receipts } from "../db/schema/index.ts";
 import { emit } from "../utils/events.ts";
-import { applyBestPromotion } from "./promotion.service.ts";
+import { applyBestPromotion, calculatePromotionDiscount } from "./promotion.service.ts";
 import { emitTableOccupancyChanged } from "./floor.service.ts";
 import { generateOrderNumber } from "../utils/orderNumber.ts";
 import {
@@ -30,7 +30,7 @@ export interface CreateOrderInput {
 export async function calculateTotals(orderId: bigint) {
   const order = await db.query.orders.findFirst({
     where: eq(orders.id, orderId),
-    with: { items: true },
+    with: { items: true, promotion: true },
   });
   if (!order) return null;
 
@@ -44,13 +44,31 @@ export async function calculateTotals(orderId: bigint) {
     taxAmount += lineTax;
   }
 
-  const discountAmount = Number(order.discountAmount);
+  let discountAmount = Number(order.discountAmount);
+  let promotionId = order.promotionId;
+
+  if (order.promotion) {
+    const recalculated = calculatePromotionDiscount(
+      order.promotion,
+      subtotal,
+      order.items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+    );
+    if (recalculated === null) {
+      discountAmount = 0;
+      promotionId = null;
+    } else {
+      discountAmount = recalculated;
+    }
+  }
+
   const grandTotal = Math.max(0, subtotal + taxAmount - discountAmount);
 
   await db.update(orders)
     .set({
       subtotal: subtotal.toFixed(2),
       taxAmount: taxAmount.toFixed(2),
+      discountAmount: discountAmount.toFixed(2),
+      promotionId,
       grandTotal: grandTotal.toFixed(2),
       updatedAt: new Date(),
     })

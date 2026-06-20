@@ -5,6 +5,7 @@
  * Run: bun test src/tests/calculateTotals.test.ts
  */
 import { describe, it, expect } from "bun:test";
+import { calculatePromotionDiscount } from "../services/promotion.service.ts";
 
 // ─── Pure-function extraction of the totals logic ─────────────────────────────
 // We extract the math from the service so we can test it without DB setup.
@@ -222,5 +223,19 @@ describe("computeBestPromotion", () => {
       { id: 1, type: "AUTO_ORDER_AMOUNT", discountValue: 200, minOrderAmount: 10, maxUses: null, usedCount: 0 },
     ]);
     expect(result!.discount).toBe(50); // capped at subtotal
+  });
+});
+
+describe("calculatePromotionDiscount", () => {
+  it("recalculates percentage coupon discount when subtotal changes", () => {
+    const promo = { type: "COUPON_PERCENTAGE", discountValue: "20.00" };
+    expect(calculatePromotionDiscount(promo, 50)).toBe(10);
+    expect(calculatePromotionDiscount(promo, 70)).toBe(14);
+  });
+
+  it("caps fixed coupon discount at subtotal", () => {
+    const promo = { type: "COUPON_FIXED", discountValue: "50.00", minOrderAmount: "200.00" };
+    expect(calculatePromotionDiscount(promo, 250)).toBe(50);
+    expect(calculatePromotionDiscount(promo, 30)).toBeNull();
   });
 });
