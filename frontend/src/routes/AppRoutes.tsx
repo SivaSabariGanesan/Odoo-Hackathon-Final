@@ -4,20 +4,20 @@ import ProtectedRoute from "./ProtectedRoute";
 import { ROUTES } from "./paths";
 
 // Auth
-import Login    from "../pages/auth/Login";
-import Signup   from "../pages/auth/Signup";
+import Login  from "../pages/auth/Login";
+import Signup from "../pages/auth/Signup";
 
-// Admin pages
-import Dashboard           from "../pages/admin/Dashboard";
-import Products            from "../pages/admin/Products";
-import Categories          from "../pages/admin/Categories";
-import Payments            from "../pages/admin/Payments";
-import Coupons             from "../pages/admin/Coupons";
-import Employees           from "../pages/admin/Employees";
-import Reports             from "../pages/admin/Reports";
+// Admin
+import Dashboard            from "../pages/admin/Dashboard";
+import Products             from "../pages/admin/Products";
+import Categories           from "../pages/admin/Categories";
+import Payments             from "../pages/admin/Payments";
+import Coupons              from "../pages/admin/Coupons";
+import Employees            from "../pages/admin/Employees";
+import Reports              from "../pages/admin/Reports";
 import FloorTableManagement from "../pages/admin/FloorTableManagement";
 
-// Employee / Cashier pages
+// Employee / Cashier
 import POSSession from "../pages/employee/POSSession";
 import POSOrder   from "../pages/employee/POSOrder";
 import Orders     from "../pages/employee/Orders";
@@ -27,7 +27,7 @@ import Customers  from "../pages/employee/Customers";
 // Kitchen
 import KDS from "../pages/kitchen/KDS";
 
-// Self Ordering (unauthenticated — customer-facing kiosk flow)
+// Self Ordering (unauthenticated — customer-facing kiosk)
 import Splash            from "../pages/selfOrder/Splash";
 import SelfOrderSettings from "../pages/selfOrder/Settings";
 import QRGenerator       from "../pages/selfOrder/QRGenerator";
@@ -35,17 +35,11 @@ import ProductBrowse     from "../pages/selfOrder/ProductBrowse";
 import SelfCart          from "../pages/selfOrder/Cart";
 import OrderConfirmed    from "../pages/selfOrder/OrderConfirmed";
 import TrackOrder        from "../pages/selfOrder/TrackOrder";
-import Products         from "../pages/admin/Products";
-import Categories       from "../pages/admin/Categories";
-import Payments         from "../pages/admin/Payments";
-import Coupons          from "../pages/admin/Coupons";
-import Employees        from "../pages/admin/Employees";
-import FloorTableManagement from "../pages/admin/FloorTableManagement";
-import KDS             from "../pages/kitchen/KDS";
-import Reports         from "../pages/admin/Reports";
-import CustomerOrderView    from "../pages/customerDisplay/OrderView";
-import CustomerPaymentView  from "../pages/customerDisplay/PaymentView";
-import CustomerCompletion   from "../pages/customerDisplay/Completion";
+
+// Customer Display (unauthenticated — screen-facing)
+import CustomerOrderView   from "../pages/customerDisplay/OrderView";
+import CustomerPaymentView from "../pages/customerDisplay/PaymentView";
+import CustomerCompletion  from "../pages/customerDisplay/Completion";
 
 export default function AppRouter() {
   return (
@@ -53,48 +47,57 @@ export default function AppRouter() {
       <AuthProvider>
         <Routes>
 
-          {/* ── Public ─────────────────────────────────────────────── */}
-          {/* Single login page for all staff. Role-based redirect on success. */}
+          {/* ── Public ───────────────────────────────────────────── */}
           <Route index element={<Navigate to={ROUTES.LOGIN} replace />} />
-          <Route path={ROUTES.LOGIN}  element={<Login />} />
-
-          {/*
-            /signup is kept for the first-time ADMIN bootstrap only.
-            Not linked anywhere in the UI — reach it by direct URL.
-          */}
+          <Route path={ROUTES.LOGIN} element={<Login />} />
+          {/* /signup is for first-time ADMIN bootstrap only — not linked in UI */}
           <Route path="/signup" element={<Signup />} />
 
-        {/* Employee / POS */}
-        <Route path="/employee/session" element={<POSSession />} />
-        <Route path="/employee/order"   element={<POSOrder />} />
-        <Route path="/employee/orders"  element={<Orders />} />
-        <Route path="/employee/tables"    element={<TableView />} />
-        <Route path="/employee/customers" element={<Customers />} />
+          {/* ── Admin only ───────────────────────────────────────── */}
+          <Route element={<ProtectedRoute roles={["ADMIN"]} />}>
+            <Route path={ROUTES.ADMIN_DASHBOARD} element={<Dashboard />} />
+            <Route path={ROUTES.PRODUCTS}        element={<Products />} />
+            <Route path={ROUTES.CATEGORIES}      element={<Categories />} />
+            <Route path={ROUTES.PAYMENTS}        element={<Payments />} />
+            <Route path={ROUTES.COUPONS}         element={<Coupons />} />
+            <Route path={ROUTES.EMPLOYEES}       element={<Employees />} />
+            <Route path={ROUTES.REPORTS}         element={<Reports />} />
+            <Route path={ROUTES.FLOOR_TABLES}    element={<FloorTableManagement />} />
+            <Route path={ROUTES.QR_GENERATOR}        element={<QRGenerator />} />
+            <Route path={ROUTES.SELF_ORDER_SETTINGS} element={<SelfOrderSettings />} />
+          </Route>
 
-        {/* Self Ordering */}
-        <Route path="/self-order/splash"    element={<Splash />} />
-        <Route path="/self-order/settings"  element={<SelfOrderSettings />} />
-        <Route path="/self-order/qr"        element={<QRGenerator />} />
-        <Route path="/self-order/products"  element={<ProductBrowse />} />
-        <Route path="/self-order/cart"      element={<SelfCart />} />
-        <Route path="/self-order/confirmed" element={<OrderConfirmed />} />
-        <Route path="/self-order/track"     element={<TrackOrder />} />
+          {/* ── Cashier (Admin can also access) ──────────────────── */}
+          <Route element={<ProtectedRoute roles={["ADMIN", "CASHIER"]} />}>
+            <Route path={ROUTES.POS_SESSION} element={<POSSession />} />
+            <Route path={ROUTES.POS_ORDER}   element={<POSOrder />} />
+            <Route path={ROUTES.ORDERS}      element={<Orders />} />
+            <Route path={ROUTES.TABLE_VIEW}  element={<TableView />} />
+            <Route path={ROUTES.CUSTOMERS}   element={<Customers />} />
+          </Route>
 
-        {/* Admin */}
-        <Route path="/admin/products"       element={<Products />} />
-        <Route path="/admin/categories"     element={<Categories />} />
-        <Route path="/admin/payments"       element={<Payments />} />
-        <Route path="/admin/coupons"        element={<Coupons />} />
-        <Route path="/admin/employees"      element={<Employees />} />
-        <Route path="/admin/floor-tables"   element={<FloorTableManagement />} />
-        <Route path="/kitchen"              element={<KDS />} />
-        <Route path="/admin/reports"        element={<Reports />} />
+          {/* ── Kitchen only ─────────────────────────────────────── */}
+          <Route element={<ProtectedRoute roles={["KITCHEN"]} />}>
+            <Route path={ROUTES.KDS} element={<KDS />} />
+          </Route>
 
-        {/* Customer Display */}
-        <Route path="/customer-display/order"      element={<CustomerOrderView />} />
-        <Route path="/customer-display/payment"    element={<CustomerPaymentView />} />
-        <Route path="/customer-display/completion" element={<CustomerCompletion />} />
-      </Routes>
+          {/* ── Self-ordering kiosk (unauthenticated) ────────────── */}
+          <Route path={ROUTES.SPLASH}          element={<Splash />} />
+          <Route path={ROUTES.PRODUCT_BROWSE}  element={<ProductBrowse />} />
+          <Route path={ROUTES.CART}            element={<SelfCart />} />
+          <Route path={ROUTES.ORDER_CONFIRMED} element={<OrderConfirmed />} />
+          <Route path={ROUTES.TRACK_ORDER}     element={<TrackOrder />} />
+
+          {/* ── Customer display screens (unauthenticated) ───────── */}
+          <Route path={ROUTES.CUSTOMER_ORDER}    element={<CustomerOrderView />} />
+          <Route path={ROUTES.CUSTOMER_PAYMENT}  element={<CustomerPaymentView />} />
+          <Route path={ROUTES.CUSTOMER_COMPLETE} element={<CustomerCompletion />} />
+
+          {/* ── Fallback ─────────────────────────────────────────── */}
+          <Route path="*" element={<Navigate to={ROUTES.LOGIN} replace />} />
+
+        </Routes>
+      </AuthProvider>
     </BrowserRouter>
   );
 }
