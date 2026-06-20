@@ -5,7 +5,6 @@ import { hashPassword, verifyPassword } from "../utils/password.ts";
 import { generateReceiptNumber } from "../utils/orderNumber.ts";
 import jwt from "jsonwebtoken";
 import { authConfig } from "../config/auth.ts";
-import { sql } from "drizzle-orm";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -50,7 +49,7 @@ export async function customerRegister(input: CustomerRegisterInput) {
       and(eq(c.email, input.email), isNullFn(c.deletedAt)),
   });
 
-  if (existing && (existing as any).password_hash) {
+  if (existing && existing.passwordHash) {
     throw Object.assign(new Error("Email already registered"), { status: 409 });
   }
 
@@ -58,9 +57,14 @@ export async function customerRegister(input: CustomerRegisterInput) {
 
   if (existing) {
     // Customer record already exists (added by cashier) — just add password
-    await db.execute(
-      sql`UPDATE customers SET password_hash = ${passwordHash}, name = ${input.name}, phone = ${input.phone ?? existing.phone}, updated_at = now() WHERE id = ${existing.id}`,
-    );
+    await db.update(customers)
+      .set({
+        passwordHash,
+        name: input.name,
+        phone: input.phone ?? existing.phone ?? undefined,
+        updatedAt: new Date(),
+      })
+      .where(eq(customers.id, existing.id));
     const updated = await db.query.customers.findFirst({
       where: eq(customers.id, existing.id),
     });
@@ -76,9 +80,9 @@ export async function customerRegister(input: CustomerRegisterInput) {
 
   if (!customer) throw new Error("Failed to create customer account");
 
-  await db.execute(
-    sql`UPDATE customers SET password_hash = ${passwordHash} WHERE id = ${customer.id}`,
-  );
+  await db.update(customers)
+    .set({ passwordHash })
+    .where(eq(customers.id, customer.id));
 
   return {
     customer:    toPublicCustomer(customer),
@@ -89,29 +93,26 @@ export async function customerRegister(input: CustomerRegisterInput) {
 // ─── Login ────────────────────────────────────────────────────────────────────
 
 export async function customerLogin(input: CustomerLoginInput) {
-  const row = await db.execute(
-    sql`SELECT id, public_id, name, email, phone, password_hash, deleted_at
-        FROM customers
-        WHERE email = ${input.email}
-        LIMIT 1`,
-  );
+  const customer = await db.query.customers.findFirst({
+    where: (c, { eq, and, isNull: isNullFn }) =>
+      and(eq(c.email, input.email), isNullFn(c.deletedAt)),
+  });
 
-  const customer = row.rows[0] as any;
-  if (!customer || customer.deleted_at) {
+  if (!customer || customer.deletedAt) {
     throw Object.assign(new Error("Invalid email or password"), { status: 401 });
   }
-  if (!customer.password_hash) {
+  if (!customer.passwordHash) {
     throw Object.assign(new Error("No password set. Please register first."), { status: 401 });
   }
 
-  const valid = await verifyPassword(input.password, customer.password_hash);
+  const valid = await verifyPassword(input.password, customer.passwordHash);
   if (!valid) {
     throw Object.assign(new Error("Invalid email or password"), { status: 401 });
   }
 
   return {
-    customer:    { id: customer.public_id, name: customer.name, email: customer.email, phone: customer.phone },
-    accessToken: signCustomerToken(customer.public_id, customer.email),
+    customer:    { id: customer.publicId, name: customer.name, email: customer.email, phone: customer.phone },
+    accessToken: signCustomerToken(customer.publicId, customer.email ?? ""),
   };
 }
 
