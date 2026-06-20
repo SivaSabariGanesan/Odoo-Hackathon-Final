@@ -1,15 +1,15 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { Eye, EyeOff, Coffee } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useAuth } from "../../context/AuthContext";
 import { loginRequest } from "../../api/auth";
-import { ROUTES } from "../../routes/paths";
+import { roleHome } from "../../routes/ProtectedRoute";
 
 const loginSchema = z.object({
-  email: z.string().email("Enter a valid email"),
+  email:    z.string().email("Enter a valid email"),
   password: z.string().min(1, "Password is required"),
 });
 
@@ -31,11 +31,8 @@ export default function Login() {
     try {
       const { user, accessToken, refreshToken } = await loginRequest(values);
       setAuth(user, accessToken, refreshToken);
-
-      // Route by role
-      if (user.role === "ADMIN") navigate(ROUTES.ADMIN_DASHBOARD);
-      else if (user.role === "KITCHEN") navigate(ROUTES.KDS);
-      else navigate(ROUTES.POS_SESSION);
+      // Redirect to the appropriate dashboard based on the role stored in DB
+      navigate(roleHome(user.role), { replace: true });
     } catch (err: any) {
       const message =
         err?.response?.data?.error?.message ?? "Invalid email or password";
@@ -54,11 +51,11 @@ export default function Login() {
               <Coffee className="text-white w-7 h-7" />
             </div>
           </div>
-    <h1 className="text-3xl sm:text-4xl font-bold" style={{ color: "#121B35" }}>
-  Odoo Cafe POS
-</h1>
+          <h1 className="text-3xl sm:text-4xl font-bold" style={{ color: "#121B35" }}>
+            Odoo Cafe POS
+          </h1>
           <p className="text-gray-500 mt-2 text-sm sm:text-base">
-            Welcome back! Please login to continue.
+            Sign in with your staff credentials to continue.
           </p>
         </div>
 
@@ -79,6 +76,7 @@ export default function Login() {
             <input
               type="email"
               placeholder="Enter your email"
+              autoComplete="email"
               {...register("email")}
               className="w-full border border-gray-300 rounded-lg px-4 py-3 outline-none focus:border-[#714B67]"
             />
@@ -96,6 +94,7 @@ export default function Login() {
               <input
                 type={showPassword ? "text" : "password"}
                 placeholder="Enter your password"
+                autoComplete="current-password"
                 {...register("password")}
                 className="w-full border border-gray-300 rounded-lg px-4 py-3 pr-12 outline-none focus:border-[#714B67]"
               />
@@ -103,6 +102,7 @@ export default function Login() {
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
                 className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500"
+                aria-label={showPassword ? "Hide password" : "Show password"}
               >
                 {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
               </button>
@@ -112,33 +112,21 @@ export default function Login() {
             )}
           </div>
 
-          {/* Remember + Forgot */}
-          <div className="flex justify-between text-sm">
-            <label className="flex items-center gap-2 text-gray-600">
-              <input type="checkbox" />
-              Remember me
-            </label>
-            <a href="#" className="text-[#714B67] hover:underline">
-              Forgot Password?
-            </a>
-          </div>
-
           {/* Submit */}
           <button
             type="submit"
             disabled={isSubmitting}
             className="w-full bg-[#714B67] text-white py-3 rounded-lg font-semibold hover:bg-[#5d3d55] transition cursor-pointer shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            {isSubmitting ? "Logging in..." : "Login"}
+            {isSubmitting ? "Signing in…" : "Sign In"}
           </button>
 
         </form>
 
-        <p className="text-center mt-6 text-gray-600">
-          Don't have an account?
-          <Link to="/signup" className="text-[#714B67] font-semibold ml-1 hover:underline">
-            Sign Up
-          </Link>
+        {/* Role hint — helpful for demos / dev */}
+        <p className="text-center mt-6 text-xs text-gray-400">
+          Access is determined by your role assigned in the system.
+          Contact your administrator if you need an account.
         </p>
 
       </div>

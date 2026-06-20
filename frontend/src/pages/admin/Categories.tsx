@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import {
   Plus, Trash2, User, Menu, MonitorSmartphone,
   ShoppingCart, ArrowUpFromLine, LayoutGrid, Tag,
@@ -7,15 +7,18 @@ import {
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { ROUTES } from "../../routes/paths";
+import {
+  fetchCategories,
+  createCategory,
+  updateCategory,
+  deleteCategory,
+  type Category as ApiCategory,
+} from "../../api/categories";
 
+// Local shape used by the UI (publicId is the stable ID from the API)
 interface Category { id: string; name: string; color: string }
 
 const COLOR_PALETTE = ["#4caf50","#2196f3","#ff9800","#e91e63","#9c27b0","#00bcd4","#714B67","#f44336"];
-
-const INIT: Category[] = [
-  { id: "c1", name: "Quick Bites", color: "#f44336" },
-  { id: "c2", name: "Food",        color: "#4caf50" },
-];
 
 const NAV_ITEMS = [
   { label: "Products",           icon: LayoutGrid,    to: ROUTES.PRODUCTS },
@@ -36,8 +39,8 @@ function CategoryRow({
   onDelete,
 }: {
   cat: Category;
-  onChange: (id: string, field: "name" | "color", val: string) => void;
-  onDelete: (id: string) => void;
+  onChange: (id: string, field: "name" | "color", val: string) => void | Promise<void>;
+  onDelete: (id: string) => void | Promise<void>;
 }) {
   return (
     <tr className="group border-b border-gray-50 hover:bg-gray-50/60 transition">
@@ -87,9 +90,25 @@ function CategoryRow({
 
 // ── Main Page ────────────────────────────────────────────────────
 export default function Categories() {
-  const [categories, setCategories] = useState<Category[]>(INIT);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [loading, setLoading]       = useState(true);
   const [navOpen, setNavOpen]       = useState(false);
   const navRef = useRef<HTMLDivElement>(null);
+
+  // Load categories from API on mount
+  const loadCategories = useCallback(async () => {
+    try {
+      setLoading(true);
+      const data = await fetchCategories();
+      setCategories(data.map((c: ApiCategory) => ({ id: c.publicId, name: c.name, color: c.color })));
+    } catch (err) {
+      console.error("Failed to load categories", err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { loadCategories(); }, [loadCategories]);
 
   useEffect(() => {
     const h = (e: MouseEvent) => {
@@ -99,16 +118,36 @@ export default function Categories() {
     return () => document.removeEventListener("mousedown", h);
   }, []);
 
-  function addNew() {
-    setCategories(prev => [...prev, { id: crypto.randomUUID(), name: "", color: COLOR_PALETTE[0] }]);
+  async function addNew() {
+    try {
+      const created = await createCategory({ name: "", color: COLOR_PALETTE[0] });
+      setCategories(prev => [...prev, { id: created.publicId, name: created.name, color: created.color }]);
+    } catch (err) {
+      console.error("Failed to create category", err);
+    }
   }
 
-  function handleChange(id: string, field: "name" | "color", val: string) {
+  async function handleChange(id: string, field: "name" | "color", val: string) {
+    // Optimistic update
     setCategories(prev => prev.map(c => c.id === id ? { ...c, [field]: val } : c));
+    try {
+      await updateCategory(id, { [field]: val });
+    } catch (err) {
+      console.error("Failed to update category", err);
+      loadCategories(); // revert on failure
+    }
   }
 
-  function handleDelete(id: string) {
-    setCategories(prev => prev.filter(c => c.id !== id));
+  async function handleDelete(id: string) {
+    setCategories(prev => prev.filter(c => c.id !== id)); // optimistic
+    try {
+      await deleteCategory(id);
+    } catch (err: any) {
+      console.error("Failed to delete category", err);
+      const msg = err?.response?.data?.error?.message ?? "Cannot delete category";
+      alert(msg);
+      loadCategories(); // revert
+    }
   }
 
   return (
@@ -183,21 +222,27 @@ export default function Categories() {
                 </tr>
               </thead>
               <tbody>
-                {categories.map(cat => (
-                  <CategoryRow key={cat.id} cat={cat} onChange={handleChange} onDelete={handleDelete} />
-                ))}
-                {/* Empty new row hint */}
-                <tr className="border-b border-gray-50">
-                  <td className="pl-3 pr-1 py-3 w-8">
-                    <GripVertical className="w-3.5 h-3.5 text-gray-200" />
-                  </td>
-                  <td colSpan={3} className="px-3 py-2.5">
-                    <button onClick={addNew}
-                      className="text-xs text-gray-300 hover:text-[#714B67] transition flex items-center gap-1">
-                      <Plus className="w-3 h-3" />Add a line
-                    </button>
-                  </td>
-                </tr>
+                {loading ? (
+                  <tr><td colSpan={4} className="px-4 py-10 text-center text-gray-400 text-sm">Loading…</td></tr>
+                ) : (
+                  <>
+                    {categories.map(cat => (
+                      <CategoryRow key={cat.id} cat={cat} onChange={handleChange} onDelete={handleDelete} />
+                    ))}
+                    {/* Empty new row hint */}
+                    <tr className="border-b border-gray-50">
+                      <td className="pl-3 pr-1 py-3 w-8">
+                        <GripVertical className="w-3.5 h-3.5 text-gray-200" />
+                      </td>
+                      <td colSpan={3} className="px-3 py-2.5">
+                        <button onClick={addNew}
+                          className="text-xs text-gray-300 hover:text-[#714B67] transition flex items-center gap-1">
+                          <Plus className="w-3 h-3" />Add a line
+                        </button>
+                      </td>
+                    </tr>
+                  </>
+                )}
               </tbody>
             </table>
           </div>

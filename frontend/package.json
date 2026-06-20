@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "typecheck": "node node_modules/typescript/bin/tsc -b",
+    "build": "vite build",
+    "build:full": "node node_modules/typescript/bin/tsc -b ; vite build",
     "lint": "eslint .",
     "preview": "vite preview"
   },

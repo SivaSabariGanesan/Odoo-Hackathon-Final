@@ -1,0 +1,3 @@
+export default function FloorTableManagement() {
+  return <div className="p-8 text-2xl font-semibold text-[#121B35]">Floor & Table Management</div>;
+}

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import {
   Search, Plus, Trash2, Archive, X,
   User, Menu, MonitorSmartphone, ShoppingCart,
@@ -8,27 +8,18 @@ import {
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { ROUTES } from "../../routes/paths";
+import {
+  fetchProducts, createProduct, updateProduct,
+  deleteProduct, archiveProduct, bulkArchiveProducts, bulkDeleteProducts,
+  type Product as ApiProduct,
+} from "../../api/products";
+import { fetchCategories, createCategory, type Category as ApiCategory } from "../../api/categories";
 
 interface Category { id: string; name: string; color: string }
 interface Product {
   id: string; name: string; categoryId: string;
   price: number; tax: number; archived: boolean; description: string;
 }
-
-const INIT_CATEGORIES: Category[] = [
-  { id: "c1", name: "Food",  color: "#4caf50" },
-  { id: "c2", name: "Drink", color: "#2196f3" },
-  { id: "c3", name: "Snack", color: "#ff9800" },
-];
-
-const INIT_PRODUCTS: Product[] = [
-  { id: "1", name: "Masala Tea", categoryId: "c1", price: 65, tax: 5, archived: false, description: "" },
-  { id: "2", name: "Coffee",     categoryId: "c2", price: 65, tax: 5, archived: false, description: "" },
-  { id: "3", name: "Lassi",      categoryId: "c2", price: 65, tax: 5, archived: false, description: "" },
-  { id: "4", name: "Masala Tea", categoryId: "c1", price: 65, tax: 5, archived: false, description: "" },
-  { id: "5", name: "Coffee",     categoryId: "c2", price: 65, tax: 5, archived: false, description: "" },
-  { id: "6", name: "Lassi",      categoryId: "c2", price: 65, tax: 5, archived: false, description: "" },
-];
 
 const NAV_ITEMS = [
   { label: "Products",           icon: LayoutGrid,    to: ROUTES.PRODUCTS },
@@ -55,9 +46,15 @@ function QuickCategoryModal({
   const [name,  setName]  = useState("");
   const [color, setColor] = useState(COLOR_PALETTE[0]);
 
-  function handleSave() {
+  async function handleSave() {
     if (!name.trim()) return;
-    onSave({ id: crypto.randomUUID(), name: name.trim(), color });
+    try {
+      const created = await createCategory({ name: name.trim(), color });
+      onSave({ id: created.publicId, name: created.name, color: created.color });
+    } catch (err: any) {
+      alert(err?.response?.data?.error?.message ?? "Failed to create category");
+      return;
+    }
     onClose();
   }
 
@@ -261,13 +258,42 @@ function ProductForm({
 
 // ── Main Products Page ───────────────────────────────────────────
 export default function Products() {
-  const [categories, setCategories] = useState<Category[]>(INIT_CATEGORIES);
-  const [products,   setProducts]   = useState<Product[]>(INIT_PRODUCTS);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [products,   setProducts]   = useState<Product[]>([]);
+  const [loading,    setLoading]    = useState(true);
   const [search,     setSearch]     = useState("");
   const [selected,   setSelected]   = useState<Set<string>>(new Set());
   const [navOpen,    setNavOpen]    = useState(false);
   const [editProduct, setEditProduct] = useState<Product | null | "new">(null);
   const navRef = useRef<HTMLDivElement>(null);
+
+  // ── helpers to map API → local shape ──
+  function toLocalProduct(p: ApiProduct): Product {
+    return {
+      id:          p.publicId,
+      name:        p.name,
+      categoryId:  p.category?.publicId ?? "",
+      price:       parseFloat(p.price),
+      tax:         parseFloat(p.taxRate),
+      archived:    !p.isAvailable,
+      description: p.description ?? "",
+    };
+  }
+
+  const loadData = useCallback(async () => {
+    try {
+      setLoading(true);
+      const [cats, prods] = await Promise.all([fetchCategories(), fetchProducts()]);
+      setCategories(cats.map((c: ApiCategory) => ({ id: c.publicId, name: c.name, color: c.color })));
+      setProducts(prods.rows.map(toLocalProduct));
+    } catch (err) {
+      console.error("Failed to load data", err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { loadData(); }, [loadData]);
 
   useEffect(() => {
     const h = (e: MouseEvent) => {
@@ -291,8 +317,46 @@ export default function Products() {
     setSelected(selected.size === filtered.length && filtered.length > 0 ? new Set() : new Set(filtered.map(p => p.id)));
   }
 
-  function handleSave(p: Product) {
-    setProducts(prev => prev.find(x => x.id === p.id) ? prev.map(x => x.id === p.id ? p : x) : [p, ...prev]);
+  async function handleSave(p: Product) {
+    try {
+      const catPublicId = p.categoryId;
+      const isNew = !products.find(x => x.id === p.id);
+      if (isNew) {
+        const created = await createProduct({
+          name: p.name, categoryId: catPublicId,
+          price: p.price, taxRate: p.tax, description: p.description,
+        });
+        setProducts(prev => [toLocalProduct(created), ...prev]);
+      } else {
+        const updated = await updateProduct(p.id, {
+          name: p.name, categoryId: catPublicId,
+          price: p.price, taxRate: p.tax, description: p.description,
+        });
+        setProducts(prev => prev.map(x => x.id === p.id ? toLocalProduct(updated) : x));
+      }
+    } catch (err: any) {
+      console.error("Failed to save product", err);
+      alert(err?.response?.data?.error?.message ?? "Failed to save product");
+    }
+  }
+
+  async function handleBulkArchive() {
+    try {
+      await bulkArchiveProducts([...selected]);
+      setProducts(prev => prev.map(x => selected.has(x.id) ? { ...x, archived: true } : x));
+      setSelected(new Set());
+    } catch (err) { console.error(err); }
+  }
+
+  async function handleBulkDelete() {
+    try {
+      const result = await bulkDeleteProducts([...selected]);
+      if (result.blocked.length > 0) {
+        alert(`${result.blocked.length} product(s) could not be deleted (used in orders)`);
+      }
+      setProducts(prev => prev.filter(x => !selected.has(x.id) || result.blocked.includes(x.id)));
+      setSelected(new Set());
+    } catch (err) { console.error(err); }
   }
 
   return (
@@ -350,11 +414,11 @@ export default function Products() {
               <div className="flex items-center gap-1.5 bg-[#714B67]/5 border border-[#714B67]/20 rounded-lg px-2 py-1">
                 <span className="text-xs font-semibold text-[#714B67]">{selected.size} selected</span>
                 <div className="w-px h-4 bg-[#714B67]/20" />
-                <button onClick={() => { setProducts(p => p.map(x => selected.has(x.id) ? { ...x, archived: true } : x)); setSelected(new Set()); }}
+                <button onClick={handleBulkArchive}
                   className="flex items-center gap-1 text-xs font-medium text-gray-600 hover:text-[#714B67] transition px-1.5 py-0.5 rounded">
                   <Archive className="w-3.5 h-3.5" />Archive
                 </button>
-                <button onClick={() => { setProducts(p => p.filter(x => !selected.has(x.id))); setSelected(new Set()); }}
+                <button onClick={handleBulkDelete}
                   className="flex items-center gap-1 text-xs font-medium text-red-500 hover:text-red-600 transition px-1.5 py-0.5 rounded">
                   <Trash2 className="w-3.5 h-3.5" />Delete
                 </button>
@@ -389,7 +453,9 @@ export default function Products() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {filtered.length === 0 ? (
+                {loading ? (
+                  <tr><td colSpan={6} className="px-4 py-12 text-center text-gray-400 text-sm">Loading…</td></tr>
+                ) : filtered.length === 0 ? (
                   <tr><td colSpan={6} className="px-4 py-12 text-center text-gray-400 text-sm">No products found</td></tr>
                 ) : (
                   filtered.map(p => {
