@@ -7,7 +7,7 @@ import { customers } from "./05_customers.ts";
 import { promotions } from "./06_promotions.ts";
 import { posSessions } from "./07_pos_sessions.ts";
 import { orders, orderItems } from "./08_orders.ts";
-import { payments, receipts } from "./09_payments_receipts.ts";
+import { payments, receipts, paymentTransactions, paymentWebhookEvents } from "./09_payments_receipts.ts";
 import { kitchenTickets, kitchenTicketItems } from "./10_kds.ts";
 import { customerDisplaySessions } from "./11_customer_display.ts";
 
@@ -67,6 +67,7 @@ export const ordersRelations = relations(orders, ({ one, many }) => ({
   promotion:      one(promotions,   { fields: [orders.promotionId], references: [promotions.id] }),
   items:          many(orderItems),
   payments:       many(payments),
+  transactions:   many(paymentTransactions),
   receipts:       many(receipts),
   kitchenTickets: many(kitchenTickets),
 }));
@@ -80,8 +81,21 @@ export const orderItemsRelations = relations(orderItems, ({ one, many }) => ({
 
 // payments
 export const paymentsRelations = relations(payments, ({ one }) => ({
-  order:  one(orders,         { fields: [payments.orderId],  references: [orders.id] }),
-  method: one(paymentMethods, { fields: [payments.methodId], references: [paymentMethods.id] }),
+  order:       one(orders,               { fields: [payments.orderId],       references: [orders.id] }),
+  method:      one(paymentMethods,       { fields: [payments.methodId],      references: [paymentMethods.id] }),
+  transaction: one(paymentTransactions,  { fields: [payments.transactionId], references: [paymentTransactions.id] }),
+}));
+
+// payment transactions
+export const paymentTransactionsRelations = relations(paymentTransactions, ({ one, many }) => ({
+  order:         one(orders,         { fields: [paymentTransactions.orderId],   references: [orders.id] }),
+  method:        one(paymentMethods, { fields: [paymentTransactions.methodId],  references: [paymentMethods.id] }),
+  webhookEvents: many(paymentWebhookEvents),
+}));
+
+// payment webhook events
+export const paymentWebhookEventsRelations = relations(paymentWebhookEvents, ({ one }) => ({
+  transaction: one(paymentTransactions, { fields: [paymentWebhookEvents.transactionId], references: [paymentTransactions.id] }),
 }));
 
 // receipts
