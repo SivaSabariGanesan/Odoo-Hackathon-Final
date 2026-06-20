@@ -287,6 +287,28 @@ router.openapi(
   },
 );
 
+// DELETE /orders/:id — hard delete DRAFT orders only
+router.openapi(
+  createRoute({
+    method: "delete", path: "/orders/{id}",
+    tags: ["Orders"],
+    summary: "Hard-delete a DRAFT order and its line items. Non-draft orders return 409.",
+    request: { params: z.object({ id: z.string().uuid() }) },
+    responses: {
+      204: { description: "Deleted" },
+      404: { description: "Not found", content: { "application/json": { schema: ErrorResponse } } },
+      409: { description: "Order is not in DRAFT state", content: { "application/json": { schema: ErrorResponse } } },
+    },
+  }),
+  async (c) => {
+    const orderId = await resolveOrderId(c.req.param("id"));
+    if (!orderId) return notFound(c, "Order not found") as any;
+    const result = await svc.deleteDraftOrder(orderId);
+    if ("error" in result) return mapError(c, result.error) as any;
+    return new Response(null, { status: 204 });
+  },
+);
+
 // POST /orders/:id/cancel
 router.openapi(
   createRoute({

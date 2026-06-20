@@ -5,6 +5,12 @@ import { emit } from "../utils/events.ts";
 import { applyBestPromotion } from "./promotion.service.ts";
 import { emitTableOccupancyChanged } from "./floor.service.ts";
 import { generateOrderNumber } from "../utils/orderNumber.ts";
+import {
+  broadcastOrderCreated,
+  broadcastOrderUpdated,
+  broadcastOrderCancelled,
+  broadcastPaymentCompleted,
+} from "./realtime.service.ts";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -354,6 +360,16 @@ export async function sendToKitchen(orderId: bigint) {
     items: unsent.map((i) => ({ name: i.productName, quantity: i.quantity })),
   });
 
+  // Broadcast to connected KDS clients
+  broadcastOrderCreated({
+    orderId: order.publicId,
+    orderNumber: order.orderNumber,
+    tokenNumber: order.tokenNumber,
+    tableLabel,
+    status: "SENT_TO_KITCHEN",
+    items: unsent.map((i) => ({ name: i.productName, quantity: i.quantity, notes: i.notes })),
+  });
+
   return { ticket };
 }
 
@@ -417,6 +433,9 @@ export async function markOrderPaid(
       paidAt: new Date().toISOString(),
     });
 
+    // Broadcast payment completion to KDS clients
+    broadcastPaymentCompleted(lockedOrder.public_id as string, "");
+
     if (lockedOrder.table_id) {
       await emitTableOccupancyChanged(BigInt(lockedOrder.table_id), false);
     }
@@ -441,6 +460,8 @@ export async function cancelOrder(orderId: bigint, reason?: string) {
   }
 
   emit("order_state_changed", { orderId: guard.order.publicId, status: "CANCELLED", event: "cancelled" });
+
+  broadcastOrderCancelled(guard.order.publicId, guard.order.orderNumber);
 
   return { order: updated };
 }
@@ -479,4 +500,39 @@ export async function listOrders(params: {
     .from(orders);
 
   return { rows, total: countRes[0]?.total ?? 0 };
+}
+
+// ─── Hard-delete DRAFT order ──────────────────────────────────────────────────
+
+export async function deleteDraftOrder(orderId: bigint) {
+  return db.transaction(async (tx) => {
+    const order = await tx.query.orders.findFirst({
+      where: eq(orders.id, orderId),
+      columns: { id: true, status: true, publicId: true, orderNumber: true, tableId: true },
+    });
+
+    if (!order) return { error: "NOT_FOUND" as const };
+    if (order.status !== "DRAFT") return { error: "ORDER_NOT_DRAFT" as const };
+
+    // Remove line items first (cascade should handle it, but be explicit)
+    await tx.delete(orderItems).where(eq(orderItems.orderId, orderId));
+    await tx.delete(orders).where(eq(orders.id, orderId));
+
+    // Audit log entry
+    const { auditLogs } = await import("../db/schema/index.ts");
+    await tx.insert(auditLogs).values({
+      action: "DELETE",
+      entityType: "order",
+      entityId: orderId,
+      description: `Hard-deleted DRAFT order ${order.orderNumber}`,
+    });
+
+    if (order.tableId) {
+      await emitTableOccupancyChanged(order.tableId, false);
+    }
+
+    emit("order_state_changed", { orderId: order.publicId, status: "DELETED", event: "deleted" });
+
+    return { deleted: true as const };
+  });
 }

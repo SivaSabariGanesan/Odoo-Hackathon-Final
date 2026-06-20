@@ -40,7 +40,7 @@ async function requireCustomer(c: any): Promise<{ sub: string; email: string } |
 
 const router = createRouter();
 
-// ─── POST /api/customer/auth/register ─────────────────────────────────────────
+// ─── POST /api/v1/customer/auth/register ─────────────────────────────────────
 router.openapi(
   createRoute({
     method: "post", path: "/customer/auth/register",
@@ -64,7 +64,7 @@ router.openapi(
   },
 );
 
-// ─── POST /api/customer/auth/login ────────────────────────────────────────────
+// ─── POST /api/v1/customer/auth/login ────────────────────────────────────────
 router.openapi(
   createRoute({
     method: "post", path: "/customer/auth/login",
@@ -88,7 +88,7 @@ router.openapi(
   },
 );
 
-// ─── GET /api/customer/auth/me ────────────────────────────────────────────────
+// ─── GET /api/v1/customer/auth/me ────────────────────────────────────────────
 router.openapi(
   createRoute({
     method: "get", path: "/customer/auth/me",
