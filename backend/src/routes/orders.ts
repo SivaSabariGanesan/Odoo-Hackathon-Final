@@ -4,6 +4,7 @@ import { db } from "../db/index.ts";
 import { orders, floorTables, posSessions, orderItems, customers, products } from "../db/schema/index.ts";
 import { eq } from "drizzle-orm";
 import * as svc from "../services/order.service.ts";
+import * as receiptSvc from "../services/receipt.service.ts";
 import { ok, created, notFound, conflict, badRequest, err } from "../utils/response.ts";
 
 const ErrorResponse = z.object({ success: z.literal(false), error: z.object({ code: z.string(), message: z.string() }) });
@@ -26,11 +27,14 @@ function mapError(c: any, error: string | undefined) {
   const code = error ?? "INTERNAL_ERROR";
   if (code === "NOT_FOUND") return notFound(c, "Resource not found");
   if (code === "ORDER_ALREADY_PAID") return conflict(c, code, "Order has already been paid");
+  if (code === "ORDER_NOT_PAID") return conflict(c, code, "Order is not paid");
   if (code === "ORDER_CANCELLED") return conflict(c, code, "Order is cancelled");
   if (code === "ORDER_NOT_DRAFT") return conflict(c, code, "Order is not in DRAFT state");
   if (code === "ITEM_LOCKED_BY_KDS") return conflict(c, code, "Item is being prepared in the kitchen");
   if (code === "PRODUCT_UNAVAILABLE") return conflict(c, code, "Product is not available");
   if (code === "NO_UNSENT_ITEMS") return badRequest(c, "No new items to send to kitchen");
+  if (code === "PAYMENT_ALREADY_RECORDED") return conflict(c, code, "Payment already recorded");
+  if (code === "INSUFFICIENT_PAYMENT") return badRequest(c, "Payment amount is less than grand total");
   return err(c, 500, "INTERNAL_ERROR", code);
 }
 
@@ -340,30 +344,99 @@ router.openapi(
   },
 );
 
-// POST /orders/:id/mark-paid  (Siva's payment module calls this)
+// POST /orders/:id/payments
 router.openapi(
   createRoute({
-    method: "post", path: "/orders/{id}/mark-paid",
-    tags: ["Orders"],
-    summary: "Mark an order as Paid (called by payment module after processing)",
-    description: "Contains row-level lock + re-verify guard. The only legal path for order_status → PAID.",
+    method: "post", path: "/orders/{id}/payments",
+    tags: ["Orders", "Payments"],
+    summary: "Record payment and mark an order as Paid",
+    description: "Contains row-level lock + re-verify guard. Replaces /mark-paid.",
     request: {
       params: z.object({ id: z.string().uuid() }),
-      body: { content: { "application/json": { schema: z.object({ methodId: z.string().uuid().optional(), amount: z.number().optional(), transactionRef: z.string().optional() }) } }, required: false },
+      body: { content: { "application/json": { schema: z.object({ methodId: z.string().uuid(), amount: z.number().positive(), transactionRef: z.string().optional() }) } }, required: true },
     },
     responses: {
       200: { description: "Paid", content: { "application/json": { schema: z.object({ success: z.literal(true), data: z.object({ paid: z.boolean() }) }) } } },
       404: { description: "Not found", content: { "application/json": { schema: ErrorResponse } } },
       409: { description: "Already paid or cancelled", content: { "application/json": { schema: ErrorResponse } } },
+      400: { description: "Insufficient payment", content: { "application/json": { schema: ErrorResponse } } },
     },
   }),
   async (c) => {
     const orderId = await resolveOrderId(c.req.param("id"));
     if (!orderId) return notFound(c, "Order not found") as any;
-    const body = await c.req.json().catch(() => ({}));
-    const result = await svc.markOrderPaid(orderId, body);
+    
+    const body = c.req.valid("json");
+    
+    const { paymentMethods } = await import("../db/schema/03_payment_methods.ts");
+    const method = await db.query.paymentMethods.findFirst({
+      where: eq(paymentMethods.publicId, body.methodId),
+      columns: { id: true },
+    });
+    if (!method) return notFound(c, "Payment method not found") as any;
+
+    const result = await svc.markOrderPaid(orderId, {
+      methodId: method.id,
+      amount: body.amount,
+      transactionRef: body.transactionRef,
+    });
+
     if ("error" in result) return mapError(c, result.error) as any;
     return ok(c, { paid: true });
+  },
+);
+
+// GET /orders/:id/receipt
+router.openapi(
+  createRoute({
+    method: "get", path: "/orders/{id}/receipt",
+    tags: ["Orders", "Receipts"],
+    summary: "Generate and fetch the structured JSON receipt for a paid order",
+    request: { params: z.object({ id: z.string().uuid() }) },
+    responses: {
+      200: { description: "Receipt payload", content: { "application/json": { schema: z.object({ success: z.literal(true), data: z.any() }) } } },
+      404: { description: "Not found", content: { "application/json": { schema: ErrorResponse } } },
+      409: { description: "Order not paid yet", content: { "application/json": { schema: ErrorResponse } } },
+    },
+  }),
+  async (c) => {
+    const orderId = await resolveOrderId(c.req.param("id"));
+    if (!orderId) return notFound(c, "Order not found") as any;
+
+    const result = await receiptSvc.generateReceipt(orderId);
+    if ("error" in result) return mapError(c, result.error) as any;
+    
+    return ok(c, { receiptNumber: result.receiptNumber, payload: result.payload });
+  },
+);
+
+// POST /orders/:id/receipt/email
+router.openapi(
+  createRoute({
+    method: "post", path: "/orders/{id}/receipt/email",
+    tags: ["Orders", "Receipts"],
+    summary: "Email the receipt to a customer",
+    request: {
+      params: z.object({ id: z.string().uuid() }),
+      body: { content: { "application/json": { schema: z.object({ email: z.string().email() }) } }, required: true },
+    },
+    responses: {
+      200: { description: "Email sent", content: { "application/json": { schema: z.object({ success: z.literal(true), data: z.any() }) } } },
+      404: { description: "Not found", content: { "application/json": { schema: ErrorResponse } } },
+      409: { description: "Order not paid yet", content: { "application/json": { schema: ErrorResponse } } },
+    },
+  }),
+  async (c) => {
+    const orderId = await resolveOrderId(c.req.param("id"));
+    if (!orderId) return notFound(c, "Order not found") as any;
+
+    const { email } = c.req.valid("json");
+    
+    // Add a basic rate limit stub if desired, but for now just call the service
+    const result = await receiptSvc.sendReceiptEmail(orderId, email);
+    if ("error" in result) return mapError(c, result.error) as any;
+    
+    return ok(c, { message: result.message });
   },
 );
 

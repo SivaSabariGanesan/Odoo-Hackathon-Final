@@ -26,6 +26,7 @@ import { authRouter }            from "./routes/auth.route.ts";
 import { paymentMethodsRouter } from "./routes/payment-methods.route.ts";
 import { paymentsRouter }       from "./routes/payments.route.ts";
 import { customerAuthRouter } from "./routes/customer-auth.route.ts";
+import { promotionsRouter } from "./routes/promotions.ts";
 import { selfOrderRouter }  from "./modules/self-order/index.ts";
 import { displayRouter }    from "./modules/customer-display/index.ts";
 
@@ -64,6 +65,7 @@ app.route("/api",                      kdsRouter);
 app.route("/api",                      reportsRouter);
 app.route("/",                         paymentMethodsRouter);
 app.route("/",                         paymentsRouter);
+app.route("/api",                      promotionsRouter);
 app.route("/api/v1/self-order",        selfOrderRouter);
 app.route("/api/v1/customer-display",  displayRouter);
 
