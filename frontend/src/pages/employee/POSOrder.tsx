@@ -6,7 +6,7 @@ import {
   BarChart3, Menu, MonitorSmartphone, ShoppingCart,
   ArrowUpFromLine, CheckCircle, Loader2,
   AlertCircle, BadgeCheck,
-   Delete, Mail,
+  Mail,
   Phone, MapPin,
 } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -493,7 +493,6 @@ export default function POSOrder() {
   const [payMethods, setPayMethods] = useState<PaymentMethod[]>([]);
   const [payMethodsLoading, setPayMethodsLoading] = useState(true);
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null);
-  const [cashfreeEnabled, setCashfreeEnabled] = useState(false);
   const [processingPay, setProcessingPay] = useState(false);
   const [cashReceived, setCashReceived] = useState("");
   const [cardRef, setCardRef] = useState("");
@@ -1043,23 +1042,19 @@ export default function POSOrder() {
         </div>
 
         <div className="flex items-center gap-0.5">
-          {[
-            { icon: ShoppingCart, to: ROUTES.ORDERS, title: "Orders" },
-            { icon: MonitorSmartphone, to: ROUTES.TABLE_VIEW, title: "Tables" },
-            { icon: ArrowUpFromLine, to: ROUTES.POS_SESSION, title: "Close Session" },
-          ].map(({ icon: Icon, to, title }) => (
-            <Link key={title} to={to} title={title}
-              className="p-2 text-gray-400 hover:text-[#714B67] hover:bg-gray-50 rounded-lg transition">
-              <Icon className="w-4 h-4" />
-            </Link>
-          ))}
+          {/* Orders list */}
+          <Link to={ROUTES.ORDERS} title="Orders"
+            className="p-2 text-gray-400 hover:text-[#714B67] hover:bg-gray-50 rounded-lg transition">
+            <ShoppingCart className="w-4 h-4" />
+          </Link>
           {/* Table selector — opens inline popup */}
           <button
             onClick={() => setTableOpen(true)}
-            title="Tables"
+            title="Select Table"
             className={`p-2 rounded-lg transition ${selectedTable ? "text-[#714B67] bg-[#714B67]/10" : "text-gray-400 hover:text-[#714B67] hover:bg-gray-50"}`}>
             <MonitorSmartphone className="w-4 h-4" />
           </button>
+          {/* Close session */}
           <Link to={ROUTES.POS_SESSION} title="Close Session"
             className="p-2 text-gray-400 hover:text-[#714B67] hover:bg-gray-50 rounded-lg transition">
             <ArrowUpFromLine className="w-4 h-4" />
