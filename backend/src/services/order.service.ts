@@ -1,6 +1,6 @@
 import { eq, and, sql } from "drizzle-orm";
 import { db } from "../db/index.ts";
-import { orders, orderItems, kitchenTickets, kitchenTicketItems } from "../db/schema/index.ts";
+import { orders, orderItems, kitchenTickets, kitchenTicketItems, payments, receipts } from "../db/schema/index.ts";
 import { emit } from "../utils/events.ts";
 import { applyBestPromotion } from "./promotion.service.ts";
 import { emitTableOccupancyChanged } from "./floor.service.ts";
@@ -361,21 +361,49 @@ export async function sendToKitchen(orderId: bigint) {
 
 export async function markOrderPaid(
   orderId: bigint,
-  _paymentDetails: { methodId?: bigint; amount?: number; transactionRef?: string },
+  paymentDetails: { methodId: bigint; amount: number; transactionRef?: string },
 ) {
   return db.transaction(async (tx) => {
     // Row-level lock prevents concurrent double-payment
     const lockResult = await tx.execute(
-      sql`SELECT id, status, table_id, public_id FROM orders WHERE id = ${orderId} FOR UPDATE`,
+      sql`SELECT id, status, table_id, public_id, grand_total FROM orders WHERE id = ${orderId} FOR UPDATE`,
     );
     const lockedOrder = lockResult.rows[0] as
-      | { id: bigint; status: string; table_id: bigint | null; public_id: string }
+      | { id: bigint; status: string; table_id: bigint | null; public_id: string; grand_total: string }
       | undefined;
 
     if (!lockedOrder) return { error: "NOT_FOUND" as const };
     if (lockedOrder.status === "PAID") return { error: "ORDER_ALREADY_PAID" as const };
     if (lockedOrder.status === "CANCELLED") return { error: "ORDER_CANCELLED" as const };
 
+    // Enforce single payment logic per order for now
+    const existingPaymentsRes = await tx.execute(
+      sql`SELECT id FROM payments WHERE order_id = ${orderId} LIMIT 1`
+    );
+    if (existingPaymentsRes.rows.length > 0) {
+      return { error: "PAYMENT_ALREADY_RECORDED" as const };
+    }
+
+    const grandTotal = Number(lockedOrder.grand_total);
+    const tenderedAmount = paymentDetails.amount;
+    if (tenderedAmount < grandTotal) {
+      return { error: "INSUFFICIENT_PAYMENT" as const };
+    }
+
+    const changeAmount = tenderedAmount - grandTotal;
+
+    // Write to payments table
+    await tx.insert(payments).values({
+      orderId,
+      methodId: paymentDetails.methodId,
+      amount: tenderedAmount.toFixed(2),
+      changeAmount: changeAmount.toFixed(2),
+      transactionRef: paymentDetails.transactionRef,
+      status: "COMPLETED",
+      paidAt: new Date(),
+    });
+
+    // Flip order status
     await tx.update(orders)
       .set({ status: "PAID", paidAt: new Date(), updatedAt: new Date() })
       .where(eq(orders.id, orderId));

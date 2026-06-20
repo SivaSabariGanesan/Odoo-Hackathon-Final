@@ -23,6 +23,7 @@ import { couponsRouter }    from "./routes/coupons.ts";
 import { kdsRouter }        from "./routes/kds.ts";
 import { reportsRouter }    from "./routes/reports.ts";
 import { authRouter }       from "./routes/auth.route.ts";
+import { promotionsRouter } from "./routes/promotions.ts";
 import { selfOrderRouter }  from "./modules/self-order/index.ts";
 import { displayRouter }    from "./modules/customer-display/index.ts";
 
@@ -59,6 +60,7 @@ app.route("/api",                      ordersRouter);
 app.route("/api",                      couponsRouter);
 app.route("/api",                      kdsRouter);
 app.route("/api",                      reportsRouter);
+app.route("/api",                      promotionsRouter);
 app.route("/api/v1/self-order",        selfOrderRouter);
 app.route("/api/v1/customer-display",  displayRouter);
 
