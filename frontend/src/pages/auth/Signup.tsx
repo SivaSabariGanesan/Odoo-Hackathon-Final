@@ -62,7 +62,8 @@ export default function Signup() {
               <Coffee className="text-white w-7 h-7" />
             </div>
           </div>
-          <h1 className="text-3xl sm:text-4xl font-bold text-slate-950">
+
+          <h1 className="text-3xl sm:text-4xl font-bold" style={{ color: "#121B35" }}>
             Create your account
           </h1>
           <p className="text-gray-500 mt-2 text-sm sm:text-base">

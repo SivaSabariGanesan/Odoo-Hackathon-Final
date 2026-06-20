@@ -54,7 +54,9 @@ export default function Login() {
               <Coffee className="text-white w-7 h-7" />
             </div>
           </div>
-          <h1 className="text-3xl sm:text-4xl font-bold text-[#121B35]">Odoo Cafe POS</h1>
+    <h1 className="text-3xl sm:text-4xl font-bold" style={{ color: "#121B35" }}>
+  Odoo Cafe POS
+</h1>
           <p className="text-gray-500 mt-2 text-sm sm:text-base">
             Welcome back! Please login to continue.
           </p>
