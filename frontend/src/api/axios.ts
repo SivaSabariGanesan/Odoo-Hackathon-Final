@@ -24,7 +24,10 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
     (res) => res,
     (error) => {
-        if (error.response?.status === 401) {
+        const url = error.config?.url || "";
+        const isAuthRoute = url.includes("/login") || url.includes("/auth");
+        
+        if (error.response?.status === 401 && !isAuthRoute) {
             localStorage.removeItem("accessToken");
             localStorage.removeItem("refreshToken");
             window.location.href = "/";

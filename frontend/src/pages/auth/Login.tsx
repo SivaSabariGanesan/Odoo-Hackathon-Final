@@ -6,7 +6,10 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useAuth } from "../../context/AuthContext";
 import { loginRequest } from "../../api/auth";
+import { customerLogin } from "../../api/customer-auth";
 import { roleHome } from "../../routes/ProtectedRoute";
+import { ROUTES } from "../../routes/paths";
+import { resolveTable, setSoSession } from "../../api/self-order";
 
 const loginSchema = z.object({
   email:    z.string().email("Enter a valid email"),
@@ -19,6 +22,8 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const { setAuth } = useAuth();
   const navigate = useNavigate();
+  // tableToken stored by Splash page in sessionStorage after QR scan
+  const tableToken = sessionStorage.getItem("pendingTableToken");
 
   const {
     register,
@@ -28,16 +33,56 @@ export default function Login() {
   } = useForm<LoginForm>({ resolver: zodResolver(loginSchema) });
 
   const onSubmit = async (values: LoginForm) => {
+    // 1. Try staff login first
     try {
       const { user, accessToken, refreshToken } = await loginRequest(values);
       setAuth(user, accessToken, refreshToken);
-      // Redirect to the appropriate dashboard based on the role stored in DB
       navigate(roleHome(user.role), { replace: true });
-    } catch (err: any) {
-      const message =
-        err?.response?.data?.error?.message ?? "Invalid email or password";
-      setError("root", { message });
+      return;
+    } catch (staffErr: any) {
+      // If it's not a 401/403, it's a real error — show it
+      const status = staffErr?.response?.status;
+      if (status !== 401 && status !== 403) {
+        setError("root", { message: staffErr?.response?.data?.error?.message ?? "Something went wrong" });
+        return;
+      }
     }
+
+    // 2. Staff login failed with 401 — try customer login
+    try {
+      console.log("[Login] Trying customer login...");
+      const result = await customerLogin({ email: values.email, password: values.password });
+      console.log("[Login] Customer login success:", result.customer.email);
+      // Store customer token for self-order pages
+      localStorage.setItem("customerToken", result.accessToken);
+      localStorage.setItem("customerUser", JSON.stringify(result.customer));
+      // Resolve the table session — use the QR token from the URL if present
+      const tokenToUse = tableToken ?? null;
+      console.log("[Login] tableToken from URL:", tokenToUse);
+      if (tokenToUse) {
+        try {
+          console.log("[Login] Resolving table session...");
+          const tableSession = await resolveTable(tokenToUse);
+          console.log("[Login] Table session resolved:", tableSession);
+          setSoSession({
+            tableToken: tokenToUse,
+            sessionToken: tableSession.sessionToken,
+            tableId: tableSession.tableId,
+            tableNumber: tableSession.tableNumber,
+          });
+        } catch (e) {
+          console.warn("[Login] Could not resolve table session:", e);
+        }
+        // Clear the token so it doesn't persist for future visits
+        sessionStorage.removeItem("pendingTableToken");
+      }
+      console.log("[Login] Navigating to:", ROUTES.PRODUCT_BROWSE);
+      navigate(ROUTES.PRODUCT_BROWSE, { replace: true });
+    } catch (custErr: any) {
+      console.error("[Login] Customer login error:", custErr);
+      setError("root", { message: "Invalid email or password" });
+    }
+
   };
 
   return (
