@@ -7,6 +7,7 @@ export const ROUTES = {
   POS_ORDER: "/employee/order",
   TABLE_VIEW: "/employee/tables",
   ORDERS: "/employee/orders",
+  EDIT_ORDER: "/employee/orders/:id/edit",
   CUSTOMERS: "/employee/customers",
 
   // Admin

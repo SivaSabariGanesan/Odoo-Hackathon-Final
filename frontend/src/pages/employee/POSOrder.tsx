@@ -384,8 +384,14 @@ function CustomerSelectModal({
 }) {
   const [query, setQuery] = useState("");
   const [customers, setCustomers] = useState<CustomerOption[]>([]);
+  const [adding, setAdding] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newEmail, setNewEmail] = useState("");
+  const [newPhone, setNewPhone] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
 
-  useEffect(() => {
+  function reloadCustomers() {
     import("../../api/customers").then(({ fetchCustomers }) => {
       fetchCustomers({ pageSize: 200 }).then(data => {
         setCustomers(data.map(c => ({
@@ -396,7 +402,36 @@ function CustomerSelectModal({
         })));
       }).catch(() => {});
     });
-  }, []);
+  }
+
+  useEffect(() => { reloadCustomers(); }, []);
+
+  async function handleCreateCustomer() {
+    if (!newName.trim()) return;
+    setSaving(true);
+    setSaveError("");
+    try {
+      const { createCustomer } = await import("../../api/customers");
+      const created = await createCustomer({
+        name: newName.trim(),
+        email: newEmail.trim() || undefined,
+        phone: newPhone.trim() || undefined,
+      });
+      const newOption: CustomerOption = {
+        id: created.publicId,
+        name: created.name,
+        email: created.email ?? "",
+        phone: created.phone ?? "",
+      };
+      reloadCustomers();
+      onSelect(newOption);
+      onClose();
+    } catch (e: any) {
+      setSaveError(e?.response?.data?.error?.message ?? "Failed to create customer");
+    } finally {
+      setSaving(false);
+    }
+  }
 
   const filtered = customers.filter(c => {
     const q = query.toLowerCase();
@@ -413,78 +448,146 @@ function CustomerSelectModal({
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
           <div className="flex items-center gap-2">
             <User className="w-4 h-4 text-[#714B67]" />
-            <h3 className="text-sm font-bold" style={{ color: "#121B35" }}>Select Customer</h3>
+            <h3 className="text-sm font-bold" style={{ color: "#121B35" }}>
+              {adding ? "Add Customer" : "Select Customer"}
+            </h3>
           </div>
-          <button onClick={onClose}
+          <button onClick={adding ? () => { setAdding(false); setSaveError(""); } : onClose}
             className="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100 transition">
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Search */}
-        <div className="px-4 pt-3 pb-2">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
-            <input
-              autoFocus
-              value={query}
-              onChange={e => setQuery(e.target.value)}
-              placeholder="Search by name, email, phone…"
-              className="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-200 rounded-xl outline-none focus:border-[#714B67] transition placeholder:text-gray-300 text-[#121B35]"
-            />
+        {adding ? (
+          /* ── Inline Add Customer form ── */
+          <div className="px-5 py-4 space-y-3">
+            {saveError && (
+              <p className="text-xs text-red-500 flex items-center gap-1">
+                <AlertCircle className="w-3.5 h-3.5 shrink-0" />{saveError}
+              </p>
+            )}
+            <div className="relative">
+              <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                autoFocus
+                value={newName}
+                onChange={e => setNewName(e.target.value)}
+                placeholder="Full name *"
+                className="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-200 rounded-xl outline-none focus:border-[#714B67] transition placeholder:text-gray-300 text-[#121B35]"
+              />
+            </div>
+            <div className="relative">
+              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                value={newEmail}
+                onChange={e => setNewEmail(e.target.value)}
+                placeholder="Email (optional)"
+                type="email"
+                className="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-200 rounded-xl outline-none focus:border-[#714B67] transition placeholder:text-gray-300 text-[#121B35]"
+              />
+            </div>
+            <div className="relative">
+              <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                value={newPhone}
+                onChange={e => setNewPhone(e.target.value)}
+                placeholder="Phone (optional)"
+                type="tel"
+                className="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-200 rounded-xl outline-none focus:border-[#714B67] transition placeholder:text-gray-300 text-[#121B35]"
+              />
+            </div>
+            <div className="flex gap-2 pt-1">
+              <button onClick={() => { setAdding(false); setSaveError(""); }}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-gray-100 text-gray-600 hover:bg-gray-200 transition">
+                Back
+              </button>
+              <button
+                onClick={handleCreateCustomer}
+                disabled={saving || !newName.trim()}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-[#714B67] text-white hover:bg-[#5d3d55] transition flex items-center justify-center gap-1.5 disabled:opacity-60">
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                Save Customer
+              </button>
+            </div>
           </div>
-        </div>
+        ) : (
+          <>
+            {/* Search */}
+            <div className="px-4 pt-3 pb-2">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                <input
+                  autoFocus
+                  value={query}
+                  onChange={e => setQuery(e.target.value)}
+                  placeholder="Search by name, email, phone…"
+                  className="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-200 rounded-xl outline-none focus:border-[#714B67] transition placeholder:text-gray-300 text-[#121B35]"
+                />
+              </div>
+            </div>
 
-        {/* List */}
-        <div className="max-h-64 overflow-y-auto divide-y divide-gray-50 px-2 pb-2">
-          {filtered.length === 0 ? (
-            <p className="text-sm text-gray-400 text-center py-8">No customers found</p>
-          ) : (
-            filtered.map(c => {
-              const isSelected = selectedCustomer?.id === c.id;
-              return (
+            {/* List */}
+            <div className="max-h-64 overflow-y-auto divide-y divide-gray-50 px-2 pb-2">
+              {filtered.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-8">No customers found</p>
+              ) : (
+                filtered.map(c => {
+                  const isSelected = selectedCustomer?.id === c.id;
+                  return (
+                    <button
+                      key={c.id}
+                      onClick={() => { onSelect(c); onClose(); }}
+                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition
+                        ${isSelected ? "bg-[#714B67]/5 border border-[#714B67]/20" : "hover:bg-gray-50"}`}>
+                      <div className="w-9 h-9 rounded-full bg-[#714B67]/10 flex items-center justify-center shrink-0">
+                        <span className="text-sm font-bold text-[#714B67]">{c.name[0]}</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-[#121B35] truncate">{c.name}</p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="flex items-center gap-1 text-xs text-gray-400 truncate">
+                            <Mail className="w-3 h-3 shrink-0" />{c.email}
+                          </span>
+                        </div>
+                        <span className="flex items-center gap-1 text-xs text-gray-400">
+                          <Phone className="w-3 h-3 shrink-0" />{c.phone}
+                        </span>
+                      </div>
+                      {isSelected && <CheckCircle className="w-4 h-4 text-[#714B67] shrink-0" />}
+                    </button>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="border-t border-gray-100 px-5 py-3 flex items-center justify-between">
+              <div>
+                {selectedCustomer ? (
+                  <button
+                    onClick={() => { onSelect(null); onClose(); }}
+                    className="text-xs text-red-400 hover:text-red-600 font-semibold transition">
+                    Remove customer
+                  </button>
+                ) : (
+                  <span className="text-xs text-gray-400">No customer attached</span>
+                )}
+              </div>
+              <div className="flex items-center gap-3">
                 <button
-                  key={c.id}
-                  onClick={() => { onSelect(c); onClose(); }}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition
-                    ${isSelected ? "bg-[#714B67]/5 border border-[#714B67]/20" : "hover:bg-gray-50"}`}>
-                  <div className="w-9 h-9 rounded-full bg-[#714B67]/10 flex items-center justify-center shrink-0">
-                    <span className="text-sm font-bold text-[#714B67]">{c.name[0]}</span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-[#121B35] truncate">{c.name}</p>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span className="flex items-center gap-1 text-xs text-gray-400 truncate">
-                        <Mail className="w-3 h-3 shrink-0" />{c.email}
-                      </span>
-                    </div>
-                    <span className="flex items-center gap-1 text-xs text-gray-400">
-                      <Phone className="w-3 h-3 shrink-0" />{c.phone}
-                    </span>
-                  </div>
-                  {isSelected && <CheckCircle className="w-4 h-4 text-[#714B67] shrink-0" />}
+                  onClick={() => { setAdding(true); setSaveError(""); setNewName(""); setNewEmail(""); setNewPhone(""); }}
+                  className="flex items-center gap-1.5 text-xs font-semibold text-[#714B67] bg-[#714B67]/10 hover:bg-[#714B67]/20 px-3 py-1.5 rounded-lg transition">
+                  <Plus className="w-3.5 h-3.5" />
+                  Add Customer
                 </button>
-              );
-            })
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="border-t border-gray-100 px-5 py-3 flex items-center justify-between">
-          {selectedCustomer ? (
-            <button
-              onClick={() => { onSelect(null); onClose(); }}
-              className="text-xs text-red-400 hover:text-red-600 font-semibold transition">
-              Remove customer
-            </button>
-          ) : (
-            <span className="text-xs text-gray-400">No customer attached</span>
-          )}
-          <button onClick={onClose}
-            className="text-xs font-semibold text-gray-500 hover:text-gray-700 transition">
-            Cancel
-          </button>
-        </div>
+                <button onClick={onClose}
+                  className="text-xs font-semibold text-gray-500 hover:text-gray-700 transition">
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

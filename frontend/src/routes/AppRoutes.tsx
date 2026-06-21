@@ -21,6 +21,7 @@ import FloorTableManagement from "../pages/admin/FloorTableManagement";
 import POSSession from "../pages/employee/POSSession";
 import POSOrder   from "../pages/employee/POSOrder";
 import Orders     from "../pages/employee/Orders";
+import EditOrder  from "../pages/employee/EditOrder";
 import TableView  from "../pages/employee/TableView";
 import Customers  from "../pages/employee/Customers";
 
@@ -75,6 +76,7 @@ export default function AppRouter() {
             <Route path={ROUTES.POS_SESSION} element={<POSSession />} />
             <Route path={ROUTES.POS_ORDER}   element={<POSOrder />} />
             <Route path={ROUTES.ORDERS}      element={<Orders />} />
+            <Route path={ROUTES.EDIT_ORDER}  element={<EditOrder />} />
             <Route path={ROUTES.TABLE_VIEW}  element={<TableView />} />
             <Route path={ROUTES.CUSTOMERS}   element={<Customers />} />
             <Route path={ROUTES.USER_DASHBOARD} element={<UserDashboard />} />
