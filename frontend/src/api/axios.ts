@@ -20,7 +20,8 @@ api.interceptors.request.use((config) => {
     return config;
 });
 
-// On 401, clear tokens and redirect to login
+// On 401, clear tokens and redirect to login —
+// but skip auth endpoints so Login/Signup pages can handle errors themselves.
 api.interceptors.response.use(
     (res) => res,
     (error) => {
@@ -30,6 +31,7 @@ api.interceptors.response.use(
         if (error.response?.status === 401 && !isAuthRoute) {
             localStorage.removeItem("accessToken");
             localStorage.removeItem("refreshToken");
+            localStorage.removeItem("authUser");
             window.location.href = "/";
         }
         return Promise.reject(error);

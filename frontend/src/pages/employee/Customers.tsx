@@ -2,7 +2,11 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import {
   Search, UserPlus, MoreVertical, Mail, Phone,
   X, User, Trash2, Check, Loader2, AlertCircle,
+  ShoppingCart, MonitorSmartphone, ArrowUpFromLine, Menu,
 } from "lucide-react";
+import { Link } from "react-router-dom";
+import { ROUTES } from "../../routes/paths";
+import { useNavItems } from "../../hooks/useNavItems";
 import {
   fetchCustomers,
   createCustomer,
@@ -158,6 +162,9 @@ function RowMenu({ onEdit }: { onEdit: () => void }) {
 }
 
 export default function Customers() {
+  const navItems = useNavItems();
+  const navRef = useRef<HTMLDivElement>(null);
+  const [navOpen, setNavOpen] = useState(false);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [search, setSearch]       = useState("");
   const [editing, setEditing]     = useState<Customer | null | "new">(null);
@@ -178,6 +185,14 @@ export default function Customers() {
   }, []);
 
   useEffect(() => { loadCustomers(); }, [loadCustomers]);
+
+  useEffect(() => {
+    const h = (e: MouseEvent) => {
+      if (navRef.current && !navRef.current.contains(e.target as Node)) setNavOpen(false);
+    };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, []);
 
   const filtered = customers.filter(c => {
     const q = search.toLowerCase();
@@ -200,7 +215,44 @@ export default function Customers() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F5F5F7] flex flex-col items-center py-8 px-4">
+    <div className="min-h-screen bg-[#F5F5F7] flex flex-col">
+
+      {/* ── Header / Navbar ── */}
+      <header className="h-12 bg-white border-b border-gray-200 flex items-center gap-2 sm:gap-3 px-3 sm:px-4 shrink-0 z-10">
+        <img src="/logo.svg" alt="RestoPOS" className="h-7 shrink-0" />
+        <span className="text-sm font-bold hidden sm:block" style={{ color: "#121B35" }}>Customers</span>
+        <div className="flex items-center gap-0.5 ml-auto">
+          {[
+            { icon: ShoppingCart,      to: ROUTES.ORDERS,      title: "Orders" },
+            { icon: MonitorSmartphone, to: ROUTES.TABLE_VIEW,  title: "Tables" },
+            { icon: ArrowUpFromLine,   to: ROUTES.POS_SESSION, title: "Close Session" },
+          ].map(({ icon: Icon, to, title }) => (
+            <Link key={title} to={to} title={title}
+              className="p-2 text-gray-400 hover:text-[#714B67] hover:bg-gray-50 rounded-lg transition">
+              <Icon className="w-4 h-4" />
+            </Link>
+          ))}
+        </div>
+        <div className="relative" ref={navRef}>
+          <button onClick={() => setNavOpen(!navOpen)}
+            className="p-2 text-gray-400 hover:text-[#714B67] hover:bg-gray-50 rounded-lg transition">
+            <Menu className="w-4 h-4" />
+          </button>
+          {navOpen && (
+            <div className="absolute right-0 top-10 bg-white border border-gray-200 rounded-xl shadow-2xl z-50 w-52 py-1">
+              {navItems.map(({ label, icon: Icon, to }) => (
+                <Link key={label} to={to} onClick={() => setNavOpen(false)}
+                  className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition">
+                  <Icon className="w-3.5 h-3.5 text-[#714B67]" />{label}
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+      </header>
+
+      {/* ── Content ── */}
+      <div className="flex-1 flex flex-col items-center py-8 px-4">
       <div className="w-full max-w-lg">
         <div className="flex items-center gap-2 mb-5">
           <div className="bg-[#714B67]/10 p-2 rounded-lg">
@@ -273,6 +325,7 @@ export default function Customers() {
           onDelete={editing !== "new" ? handleDelete : undefined}
         />
       )}
+    </div>
     </div>
   );
 }

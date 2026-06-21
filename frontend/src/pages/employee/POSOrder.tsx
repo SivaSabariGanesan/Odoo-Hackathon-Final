@@ -389,9 +389,9 @@ function CustomerSelectModal({
   const [newEmail, setNewEmail] = useState("");
   const [newPhone, setNewPhone] = useState("");
   const [saving, setSaving] = useState(false);
-  const [addError, setAddError] = useState("");
+  const [saveError, setSaveError] = useState("");
 
-  function loadCustomers() {
+  function reloadCustomers() {
     import("../../api/customers").then(({ fetchCustomers }) => {
       fetchCustomers({ pageSize: 200 }).then(data => {
         setCustomers(data.map(c => ({
@@ -404,7 +404,34 @@ function CustomerSelectModal({
     });
   }
 
-  useEffect(() => { loadCustomers(); }, []);
+  useEffect(() => { reloadCustomers(); }, []);
+
+  async function handleCreateCustomer() {
+    if (!newName.trim()) return;
+    setSaving(true);
+    setSaveError("");
+    try {
+      const { createCustomer } = await import("../../api/customers");
+      const created = await createCustomer({
+        name: newName.trim(),
+        email: newEmail.trim() || undefined,
+        phone: newPhone.trim() || undefined,
+      });
+      const newOption: CustomerOption = {
+        id: created.publicId,
+        name: created.name,
+        email: created.email ?? "",
+        phone: created.phone ?? "",
+      };
+      reloadCustomers();
+      onSelect(newOption);
+      onClose();
+    } catch (e: any) {
+      setSaveError(e?.response?.data?.error?.message ?? "Failed to create customer");
+    } finally {
+      setSaving(false);
+    }
+  }
 
   const filtered = customers.filter(c => {
     const q = query.toLowerCase();
@@ -449,62 +476,64 @@ function CustomerSelectModal({
           <div className="flex items-center gap-2">
             <User className="w-4 h-4 text-[#714B67]" />
             <h3 className="text-sm font-bold" style={{ color: "#121B35" }}>
-              {adding ? "Add New Customer" : "Select Customer"}
+              {adding ? "Add Customer" : "Select Customer"}
             </h3>
           </div>
-          <button onClick={onClose}
+          <button onClick={adding ? () => { setAdding(false); setSaveError(""); } : onClose}
             className="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100 transition">
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {adding ? (
-          /* ── Add new customer form ── */
+          /* ── Inline Add Customer form ── */
           <div className="px-5 py-4 space-y-3">
+            {saveError && (
+              <p className="text-xs text-red-500 flex items-center gap-1">
+                <AlertCircle className="w-3.5 h-3.5 shrink-0" />{saveError}
+              </p>
+            )}
             <div className="relative">
-              <User className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+              <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input
                 autoFocus
                 value={newName}
-                onChange={e => { setNewName(e.target.value); setAddError(""); }}
+                onChange={e => setNewName(e.target.value)}
                 placeholder="Full name *"
                 className="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-200 rounded-xl outline-none focus:border-[#714B67] transition placeholder:text-gray-300 text-[#121B35]"
               />
             </div>
             <div className="relative">
-              <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
-              <input
-                value={newPhone}
-                onChange={e => setNewPhone(e.target.value)}
-                placeholder="Phone number"
-                type="tel"
-                className="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-200 rounded-xl outline-none focus:border-[#714B67] transition placeholder:text-gray-300 text-[#121B35]"
-              />
-            </div>
-            <div className="relative">
-              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input
                 value={newEmail}
                 onChange={e => setNewEmail(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && handleAddCustomer()}
-                placeholder="Email address"
+                placeholder="Email (optional)"
                 type="email"
                 className="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-200 rounded-xl outline-none focus:border-[#714B67] transition placeholder:text-gray-300 text-[#121B35]"
               />
             </div>
-            {addError && <p className="text-xs text-red-500">{addError}</p>}
+            <div className="relative">
+              <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                value={newPhone}
+                onChange={e => setNewPhone(e.target.value)}
+                placeholder="Phone (optional)"
+                type="tel"
+                className="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-200 rounded-xl outline-none focus:border-[#714B67] transition placeholder:text-gray-300 text-[#121B35]"
+              />
+            </div>
             <div className="flex gap-2 pt-1">
-              <button
-                onClick={() => { setAdding(false); setAddError(""); }}
-                className="flex-1 py-2.5 text-sm font-semibold text-gray-500 border border-gray-200 rounded-xl hover:bg-gray-50 transition">
+              <button onClick={() => { setAdding(false); setSaveError(""); }}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-gray-100 text-gray-600 hover:bg-gray-200 transition">
                 Back
               </button>
               <button
-                onClick={handleAddCustomer}
-                disabled={saving}
-                className="flex-1 py-2.5 text-sm font-bold bg-[#714B67] hover:bg-[#5d3d55] text-white rounded-xl transition shadow-sm disabled:opacity-50 flex items-center justify-center gap-2">
-                {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                Save & Select
+                onClick={handleCreateCustomer}
+                disabled={saving || !newName.trim()}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-[#714B67] text-white hover:bg-[#5d3d55] transition flex items-center justify-center gap-1.5 disabled:opacity-60">
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                Save Customer
               </button>
             </div>
           </div>
@@ -525,24 +554,9 @@ function CustomerSelectModal({
             </div>
 
             {/* List */}
-            <div className="max-h-60 overflow-y-auto divide-y divide-gray-50 px-2 pb-2">
-              {/* Add new — always visible at top when searching */}
-              <button
-                onClick={() => setAdding(true)}
-                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left hover:bg-[#714B67]/5 transition group">
-                <div className="w-9 h-9 rounded-full bg-[#714B67]/10 flex items-center justify-center shrink-0 group-hover:bg-[#714B67]/20 transition">
-                  <Plus className="w-4 h-4 text-[#714B67]" />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-[#714B67]">Add new customer</p>
-                  {query && (
-                    <p className="text-xs text-gray-400">Create "{query}"</p>
-                  )}
-                </div>
-              </button>
-
+            <div className="max-h-64 overflow-y-auto divide-y divide-gray-50 px-2 pb-2">
               {filtered.length === 0 ? (
-                <p className="text-sm text-gray-400 text-center py-6">No customers found</p>
+                <p className="text-sm text-gray-400 text-center py-8">No customers found</p>
               ) : (
                 filtered.map(c => {
                   const isSelected = selectedCustomer?.id === c.id;
@@ -557,16 +571,14 @@ function CustomerSelectModal({
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-[#121B35] truncate">{c.name}</p>
-                        {c.email && (
+                        <div className="flex items-center gap-2 mt-0.5">
                           <span className="flex items-center gap-1 text-xs text-gray-400 truncate">
                             <Mail className="w-3 h-3 shrink-0" />{c.email}
                           </span>
-                        )}
-                        {c.phone && (
-                          <span className="flex items-center gap-1 text-xs text-gray-400">
-                            <Phone className="w-3 h-3 shrink-0" />{c.phone}
-                          </span>
-                        )}
+                        </div>
+                        <span className="flex items-center gap-1 text-xs text-gray-400">
+                          <Phone className="w-3 h-3 shrink-0" />{c.phone}
+                        </span>
                       </div>
                       {isSelected && <CheckCircle className="w-4 h-4 text-[#714B67] shrink-0" />}
                     </button>
@@ -577,19 +589,29 @@ function CustomerSelectModal({
 
             {/* Footer */}
             <div className="border-t border-gray-100 px-5 py-3 flex items-center justify-between">
-              {selectedCustomer ? (
+              <div>
+                {selectedCustomer ? (
+                  <button
+                    onClick={() => { onSelect(null); onClose(); }}
+                    className="text-xs text-red-400 hover:text-red-600 font-semibold transition">
+                    Remove customer
+                  </button>
+                ) : (
+                  <span className="text-xs text-gray-400">No customer attached</span>
+                )}
+              </div>
+              <div className="flex items-center gap-3">
                 <button
-                  onClick={() => { onSelect(null); onClose(); }}
-                  className="text-xs text-red-400 hover:text-red-600 font-semibold transition">
-                  Remove customer
+                  onClick={() => { setAdding(true); setSaveError(""); setNewName(""); setNewEmail(""); setNewPhone(""); }}
+                  className="flex items-center gap-1.5 text-xs font-semibold text-[#714B67] bg-[#714B67]/10 hover:bg-[#714B67]/20 px-3 py-1.5 rounded-lg transition">
+                  <Plus className="w-3.5 h-3.5" />
+                  Add Customer
                 </button>
-              ) : (
-                <span className="text-xs text-gray-400">No customer attached</span>
-              )}
-              <button onClick={onClose}
-                className="text-xs font-semibold text-gray-500 hover:text-gray-700 transition">
-                Cancel
-              </button>
+                <button onClick={onClose}
+                  className="text-xs font-semibold text-gray-500 hover:text-gray-700 transition">
+                  Cancel
+                </button>
+              </div>
             </div>
           </>
         )}
@@ -1356,7 +1378,7 @@ export default function POSOrder() {
 
       {/* ── TOP BAR ── */}
       <header className="h-12 bg-white border-b border-gray-200 flex items-center gap-2 px-3 sm:px-4 shrink-0 z-10">
-        <div className="bg-[#714B67] text-white text-xs font-bold px-2.5 py-1 rounded-lg shrink-0">Logo</div>
+        <img src="/logo.svg" alt="RestoPOS" className="h-7 shrink-0" />
 
         {/* Search — hidden on very small screens */}
         <div className="relative hidden sm:block sm:w-40 md:w-56">
@@ -1389,17 +1411,15 @@ export default function POSOrder() {
           </Link>
         </div>
 
-        {/* Session / table badge */}
+        {/* Session / table badge — only shown when a table is selected */}
+        {selectedTable && (
         <div className="hidden md:flex bg-[#714B67]/10 text-[#714B67] text-xs font-semibold px-2.5 py-1 rounded-full whitespace-nowrap items-center gap-1.5">
-          {selectedTable ? (
-            <>
+          <>
               <MonitorSmartphone className="w-3 h-3" />
               {selectedTable.floorName} · T{selectedTable.tableNumber}
             </>
-          ) : (
-            "Jubilant Shark · 12 V"
-          )}
         </div>
+        )}
 
         <div className="flex-1" />
 

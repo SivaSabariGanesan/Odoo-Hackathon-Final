@@ -11,7 +11,7 @@
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
     "db:drop": "drizzle-kit drop",
-    "db:seed": "bun run src/db/seed.ts"
+    "db:seed": "bun --env-file=.env run src/db/seed.ts"
   },
   "devDependencies": {
     "@types/bcrypt": "^6.0.0",

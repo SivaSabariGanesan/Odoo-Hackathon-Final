@@ -106,7 +106,7 @@ export default function Reports() {
   return (
     <div className="min-h-screen flex flex-col bg-[#F5F5F7]">
       <header className="h-12 bg-white border-b border-gray-200 flex items-center gap-2 sm:gap-3 px-3 sm:px-4 shrink-0 z-10">
-        <div className="bg-[#714B67] text-white text-xs font-bold px-2.5 py-1 rounded-lg shrink-0">Logo</div>
+        <img src="/logo.svg" alt="RestoPOS" className="h-7 shrink-0" />
         <span className="text-sm font-bold" style={{ color: "#121B35" }}>Reports</span>
         <div className="flex items-center gap-0.5 ml-auto">
           {[

@@ -53,9 +53,7 @@ export default function CustomerDisplay() {
         <div className="w-52 sm:w-64 shrink-0 bg-white border-r border-gray-200 flex flex-col px-6 py-8">
           {/* Logo top */}
           <div>
-            <div className="bg-[#714B67] text-white text-xs font-bold px-4 py-2 rounded-lg inline-block">
-              Logo
-            </div>
+            <img src="/logo.svg" alt="RestoPOS" className="h-8" />
           </div>
 
           {/* Welcome message — vertically centered */}

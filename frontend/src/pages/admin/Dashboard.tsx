@@ -124,11 +124,10 @@ export default function Dashboard() {
   ];
 
   return (
-    <div className="min-h-screen flex flex-col bg-muted/40">
-      {/* Header */}
-      <header className="h-12 bg-background border-b flex items-center gap-3 px-4 shrink-0 z-10">
-        <div className="bg-[#714B67] text-white text-xs font-bold px-2.5 py-1 rounded-lg shrink-0">Logo</div>
-        <span className="text-sm font-semibold">Dashboard</span>
+    <div className="min-h-screen flex flex-col bg-[#F5F5F7]">
+      <header className="h-12 bg-white border-b border-gray-200 flex items-center gap-3 px-4 shrink-0 z-10">
+        <img src="/logo.svg" alt="RestoPOS" className="h-7 shrink-0" />
+        <span className="text-sm font-bold" style={{ color: "#121B35" }}>Dashboard</span>
         <div className="flex items-center gap-0.5 ml-auto">
           {[
             { icon: ShoppingCart,      to: ROUTES.ORDERS,      title: "Orders" },

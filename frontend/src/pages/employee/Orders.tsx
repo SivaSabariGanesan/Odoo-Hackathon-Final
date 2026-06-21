@@ -120,14 +120,14 @@ function OrderDetailModal({ order, onClose, onDelete }: {
             </div>
           )}
         </div>
-        {order.status === "DRAFT" ? (
+        {order.status === "DRAFT" || order.status === "SENT_TO_KITCHEN" || order.status === "PREPARING" || order.status === "READY" ? (
           <div className="grid grid-cols-2 border-t border-gray-100">
             <button onClick={handleDelete} disabled={deleting}
               className="flex items-center justify-center gap-2 py-3.5 text-sm font-semibold text-red-500 hover:bg-red-50 transition border-r border-gray-100 disabled:opacity-50">
               {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
               Cancel
             </button>
-            <button onClick={() => navigate(ROUTES.POS_ORDER)}
+            <button onClick={() => navigate(ROUTES.EDIT_ORDER.replace(":id", order.publicId))}
               className="flex items-center justify-center gap-2 py-3.5 text-sm font-semibold text-[#714B67] hover:bg-[#714B67]/5 transition">
               <Pencil className="w-4 h-4" />Edit
             </button>
@@ -192,7 +192,7 @@ export default function Orders() {
   return (
     <div className="min-h-screen flex flex-col bg-[#F5F5F7]">
       <header className="h-12 bg-white border-b border-gray-200 flex items-center gap-2 sm:gap-3 px-3 sm:px-4 shrink-0 z-10">
-        <div className="bg-[#714B67] text-white text-xs font-bold px-2.5 py-1 rounded-lg shrink-0">Logo</div>
+        <img src="/logo.svg" alt="RestoPOS" className="h-7 shrink-0" />
         <span className="text-sm font-bold hidden sm:block" style={{ color: "#121B35" }}>Orders</span>
         <div className="flex items-center gap-0.5 ml-auto">
           {[
