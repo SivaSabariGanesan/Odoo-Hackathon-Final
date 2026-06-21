@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { ROUTES } from "../../routes/paths";
+import { useNavItems } from "../../hooks/useNavItems";
 import {
   listActiveTickets,
   advanceTicket,
@@ -36,16 +37,7 @@ function ticketStage(ticket: KdsTicket): Stage {
   return "Completed";
 }
 
-const NAV_ITEMS = [
-  { label: "Products",           to: ROUTES.PRODUCTS },
-  { label: "Category",           to: ROUTES.CATEGORIES },
-  { label: "Payment Method",     to: ROUTES.PAYMENTS },
-  { label: "Coupon & Promotion", to: ROUTES.COUPONS },
-  { label: "User/Employee",      to: ROUTES.EMPLOYEES },
-  { label: "KDS",                to: ROUTES.KDS },
-  { label: "Reports",            to: ROUTES.REPORTS },
-  { label: "Log Out",            to: ROUTES.LOGIN },
-];
+const NAV_ITEMS_PLACEHOLDER = null; // replaced by useNavItems hook
 
 function TicketCard({
   ticket,
@@ -87,6 +79,7 @@ function TicketCard({
 }
 
 export default function KDS() {
+  const navItems = useNavItems();
   const [tickets,      setTickets]      = useState<KdsTicket[]>([]);
   const [search,       setSearch]       = useState("");
   const [sidebarOpen,  setSidebarOpen]  = useState(true);
@@ -166,7 +159,7 @@ export default function KDS() {
           </button>
           {navOpen && (
             <div className="absolute right-0 top-10 bg-white border border-gray-200 rounded-xl shadow-2xl z-50 w-48 py-1">
-              {NAV_ITEMS.map(({ label, to }) => (
+              {navItems.map(({ label, to }) => (
                 <Link key={label} to={to} onClick={() => setNavOpen(false)}
                   className="block px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition">
                   {label}
