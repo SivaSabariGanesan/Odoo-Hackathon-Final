@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ROUTES } from "../../routes/paths";
-import { Coffee, Loader2, AlertCircle } from "lucide-react";
+import { Loader2, AlertCircle } from "lucide-react";
 import { resolveTable, setSoSession, getSoSession } from "../../api/self-order";
 
 const SLIDES = [
@@ -83,10 +83,7 @@ export default function Splash() {
         <div className="absolute inset-0 flex flex-col">
           {/* Logo */}
           <div className="flex justify-center pt-10">
-            <div className="flex items-center gap-2 bg-[#714B67] px-5 py-2 rounded-xl shadow-lg">
-              <Coffee className="w-4 h-4 text-white" />
-              <span className="text-white font-bold text-sm tracking-wide">Logo</span>
-            </div>
+            <img src="/logo.svg" alt="RestoPOS" className="h-9 drop-shadow-lg" />
           </div>
 
           {/* Welcome message */}

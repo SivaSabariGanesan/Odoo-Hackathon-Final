@@ -1248,7 +1248,7 @@ export default function POSOrder() {
 
       {/* ── TOP BAR ── */}
       <header className="h-12 bg-white border-b border-gray-200 flex items-center gap-2 px-3 sm:px-4 shrink-0 z-10">
-        <div className="bg-[#714B67] text-white text-xs font-bold px-2.5 py-1 rounded-lg shrink-0">Logo</div>
+        <img src="/logo.svg" alt="RestoPOS" className="h-7 shrink-0" />
 
         {/* Search — hidden on very small screens */}
         <div className="relative hidden sm:block sm:w-40 md:w-56">
@@ -1281,17 +1281,15 @@ export default function POSOrder() {
           </Link>
         </div>
 
-        {/* Session / table badge */}
+        {/* Session / table badge — only shown when a table is selected */}
+        {selectedTable && (
         <div className="hidden md:flex bg-[#714B67]/10 text-[#714B67] text-xs font-semibold px-2.5 py-1 rounded-full whitespace-nowrap items-center gap-1.5">
-          {selectedTable ? (
-            <>
+          <>
               <MonitorSmartphone className="w-3 h-3" />
               {selectedTable.floorName} · T{selectedTable.tableNumber}
             </>
-          ) : (
-            "Jubilant Shark · 12 V"
-          )}
         </div>
+        )}
 
         <div className="flex-1" />
 
