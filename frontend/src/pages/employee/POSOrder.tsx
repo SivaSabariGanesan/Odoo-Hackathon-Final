@@ -12,6 +12,7 @@ import {
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { ROUTES } from "../../routes/paths";
+import { useNavItems } from "../../hooks/useNavItems";
 import { fetchFloors, type Floor, type Table } from "../../api/floors";
 import {
   listPaymentMethods,
@@ -38,17 +39,7 @@ interface CartItem {
   productDiscount?: number;
 }
 
-const NAV_ITEMS = [
-  { label: "Products", icon: LayoutGrid, to: ROUTES.PRODUCTS },
-  { label: "Category", icon: Tag, to: ROUTES.CATEGORIES },
-  { label: "Payment Method", icon: CreditCard, to: ROUTES.PAYMENTS },
-  { label: "Coupon & Promotion", icon: Ticket, to: ROUTES.COUPONS },
-  { label: "Booking", icon: CalendarRange, to: ROUTES.FLOOR_TABLES },
-  { label: "User/Employee", icon: Users, to: ROUTES.EMPLOYEES },
-  { label: "KDS", icon: ChefHat, to: ROUTES.KDS },
-  { label: "Reports", icon: BarChart3, to: ROUTES.REPORTS },
-  { label: "Log Out", icon: LogOut, to: ROUTES.LOGIN },
-];
+const NAV_ITEMS_PLACEHOLDER = null; // replaced by useNavItems hook
 
 type MobileTab = "products" | "cart" | "payment";
 
@@ -500,6 +491,7 @@ function CustomerSelectModal({
 }
 
 export default function POSOrder() {
+  const navItems = useNavItems();
   const [activeCat, setActiveCat] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -1310,7 +1302,7 @@ export default function POSOrder() {
           </button>
           {navOpen && (
             <div className="absolute right-0 top-10 bg-white border border-gray-200 rounded-xl shadow-2xl z-50 w-52 py-1">
-              {NAV_ITEMS.map(({ label, icon: Icon, to }) => (
+              {navItems.map(({ label, icon: Icon, to }) => (
                 <Link key={label} to={to} onClick={() => setNavOpen(false)}
                   className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 hover:text-[#121B35] transition">
                   <Icon className="w-3.5 h-3.5 text-[#714B67]" />

@@ -7,19 +7,10 @@ import {
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { ROUTES } from "../../routes/paths";
+import { useNavItems } from "../../hooks/useNavItems";
 import { listOrders, cancelOrder, type Order } from "../../api/orders";
 
-const NAV_ITEMS = [
-  { label: "Products",           icon: LayoutGrid,    to: ROUTES.PRODUCTS },
-  { label: "Category",           icon: Tag,           to: ROUTES.CATEGORIES },
-  { label: "Payment Method",     icon: CreditCard,    to: ROUTES.PAYMENTS },
-  { label: "Coupon & Promotion", icon: Ticket,        to: ROUTES.COUPONS },
-  { label: "Booking",            icon: CalendarRange, to: ROUTES.FLOOR_TABLES },
-  { label: "User/Employee",      icon: Users,         to: ROUTES.EMPLOYEES },
-  { label: "KDS",                icon: ChefHat,       to: ROUTES.KDS },
-  { label: "Reports",            icon: BarChart3,     to: ROUTES.REPORTS },
-  { label: "Log Out",            icon: LogOut,        to: ROUTES.LOGIN },
-];
+const NAV_ITEMS_PLACEHOLDER = null; // replaced by useNavItems hook
 
 function formatDate(iso: string | undefined) {
   if (!iso) return "—";
@@ -152,6 +143,7 @@ function OrderDetailModal({ order, onClose, onDelete }: {
 }
 
 export default function Orders() {
+  const navItems = useNavItems();
   const [search, setSearch]     = useState("");
   const [navOpen, setNavOpen]   = useState(false);
   const [selected, setSelected] = useState<Order | null>(null);
@@ -224,7 +216,7 @@ export default function Orders() {
           </button>
           {navOpen && (
             <div className="absolute right-0 top-10 bg-white border border-gray-200 rounded-xl shadow-2xl z-50 w-52 py-1">
-              {NAV_ITEMS.map(({ label, icon: Icon, to }) => (
+              {navItems.map(({ label, icon: Icon, to }) => (
                 <Link key={label} to={to} onClick={() => setNavOpen(false)}
                   className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition">
                   <Icon className="w-3.5 h-3.5 text-[#714B67]" />{label}
