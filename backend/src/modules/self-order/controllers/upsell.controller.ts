@@ -18,6 +18,9 @@ export async function getUpsellSuggestions(c: Context) {
 
     // 2. Resolve draft order
     const draftState = await getOrCreateDraftForTable(BigInt(table.id));
+    if (!draftState.order) {
+      return c.json({ success: false, error: { message: "Could not resolve order for table" } }, 404);
+    }
     const orderId = draftState.order.id;
 
     // 3. Ensure totals are fresh

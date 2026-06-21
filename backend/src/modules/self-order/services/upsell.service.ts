@@ -114,12 +114,12 @@ export class UpsellService {
     });
 
     if (missingCategories.length > 0) {
-      const topMissingCat = missingCategories[0];
+      const topMissingCat = missingCategories[0]!;
       // Find top product in this category
       const catProducts = activeProducts.filter(p => p.categoryId === topMissingCat.publicId);
       if (catProducts.length > 0) {
         // Just take the first one (they are sorted by sortOrder from the MenuService)
-        const suggestedProd = catProducts[0];
+        const suggestedProd = catProducts[0]!;
         rawSuggestions.push({
           type: "COMPLEMENT",
           text: `Pair your meal with our ${suggestedProd.name}!`,
@@ -154,7 +154,7 @@ Rewrite them into a brief, friendly upsell message.`;
           }
         });
 
-        const llmText = response.text || rawSuggestions[0].text;
+        const llmText = response.text || rawSuggestions[0]!.text;
         
         return {
           message: llmText,
@@ -168,7 +168,7 @@ Rewrite them into a brief, friendly upsell message.`;
 
     // Graceful Degradation / No-LLM mode
     const message = rawSuggestions.length > 0 
-      ? rawSuggestions[0].text 
+      ? rawSuggestions[0]!.text 
       : "Ready to checkout?";
 
     return {
