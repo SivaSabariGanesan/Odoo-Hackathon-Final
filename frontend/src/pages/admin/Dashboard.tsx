@@ -1,30 +1,46 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import {
-  LayoutGrid, Tag, CreditCard, Ticket, CalendarRange, Users,
-  ChefHat, BarChart3, LogOut, Menu, MonitorSmartphone,
-  ShoppingCart, ArrowUpFromLine, TrendingUp, TrendingDown,
-  Package, DollarSign, ClipboardList, UserCheck, Clock,
-  AlertCircle, CheckCircle2,
+  ChefHat, Menu, MonitorSmartphone, ShoppingCart, ArrowUpFromLine,
+  TrendingUp, Package, DollarSign, ClipboardList, UserCheck,
+  Clock, CheckCircle2, BarChart3, Ticket,
 } from "lucide-react";
 import { ROUTES } from "../../routes/paths";
 import { useNavItems } from "../../hooks/useNavItems";
-import {
-  LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
-} from "recharts";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid } from "recharts";
 import { fetchKpis, fetchSalesTrend, type SalesTrendPoint } from "../../api/reports";
 import { listOrders, type Order } from "../../api/orders";
 
-const NAV_ITEMS_PLACEHOLDER = null; // replaced by useNavItems hook
+import {
+  Card, CardContent, CardHeader, CardTitle,
+} from "../../components/ui/card";
+import { Badge } from "../../components/ui/badge";
+import { Button } from "../../components/ui/button";
+import { Skeleton } from "../../components/ui/skeleton";
+import { Separator } from "../../components/ui/separator";
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from "../../components/ui/table";
+import {
+  ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig,
+} from "../../components/ui/chart";
+
+// ─── Constants ────────────────────────────────────────────────────────────────
 
 const QUICK_LINKS = [
-  { label: "Products",       icon: Package,       to: ROUTES.PRODUCTS,    color: "bg-blue-50 text-blue-600" },
-  { label: "Floor Tables",   icon: MonitorSmartphone, to: ROUTES.FLOOR_TABLES, color: "bg-purple-50 text-purple-600" },
-  { label: "Employees",      icon: UserCheck,     to: ROUTES.EMPLOYEES,   color: "bg-emerald-50 text-emerald-600" },
-  { label: "Reports",        icon: BarChart3,     to: ROUTES.REPORTS,     color: "bg-amber-50 text-amber-600" },
-  { label: "Coupons",        icon: Ticket,        to: ROUTES.COUPONS,     color: "bg-rose-50 text-rose-600" },
-  { label: "POS Session",    icon: ArrowUpFromLine, to: ROUTES.POS_SESSION, color: "bg-[#714B67]/10 text-[#714B67]" },
+  { label: "Products",     icon: Package,           to: ROUTES.PRODUCTS,    color: "bg-blue-50 text-blue-600" },
+  { label: "Floor Tables", icon: MonitorSmartphone, to: ROUTES.FLOOR_TABLES,color: "bg-purple-50 text-purple-600" },
+  { label: "Employees",    icon: UserCheck,         to: ROUTES.EMPLOYEES,   color: "bg-emerald-50 text-emerald-600" },
+  { label: "Reports",      icon: BarChart3,         to: ROUTES.REPORTS,     color: "bg-amber-50 text-amber-600" },
+  { label: "Coupons",      icon: Ticket,            to: ROUTES.COUPONS,     color: "bg-rose-50 text-rose-600" },
+  { label: "POS Session",  icon: ArrowUpFromLine,   to: ROUTES.POS_SESSION, color: "bg-[#714B67]/10 text-[#714B67]" },
 ];
+
+const chartConfig = {
+  revenue: { label: "Revenue", color: "#714B67" },
+} satisfies ChartConfig;
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 type OrderStatus = "completed" | "pending" | "preparing";
 
@@ -35,32 +51,28 @@ function mapStatus(s: Order["status"]): OrderStatus {
 }
 
 function StatusBadge({ status }: { status: OrderStatus }) {
-  const styles: Record<OrderStatus, string> = {
-    completed: "bg-emerald-50 text-emerald-600 border-emerald-200",
-    pending:   "bg-amber-50   text-amber-600   border-amber-200",
-    preparing: "bg-blue-50    text-blue-600    border-blue-200",
+  const map: Record<OrderStatus, { variant: "default" | "secondary" | "outline"; icon: React.ReactNode; label: string }> = {
+    completed: { variant: "default",   icon: <CheckCircle2 className="size-3" />, label: "Completed" },
+    pending:   { variant: "outline",   icon: <Clock className="size-3" />,        label: "Pending"   },
+    preparing: { variant: "secondary", icon: <ChefHat className="size-3" />,      label: "Preparing" },
   };
-  const icons: Record<OrderStatus, React.ReactNode> = {
-    completed: <CheckCircle2 className="w-3 h-3" />,
-    pending:   <Clock className="w-3 h-3" />,
-    preparing: <ChefHat className="w-3 h-3" />,
-  };
+  const { variant, icon, label } = map[status];
   return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${styles[status]}`}>
-      {icons[status]}
-      {status.charAt(0).toUpperCase() + status.slice(1)}
-    </span>
+    <Badge variant={variant} className="gap-1">
+      {icon}{label}
+    </Badge>
   );
 }
 
 function formatTimeAgo(iso: string | undefined): string {
   if (!iso) return "";
-  const diff = Date.now() - new Date(iso).getTime();
-  const mins = Math.floor(diff / 60_000);
+  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60_000);
   if (mins < 1) return "just now";
-  if (mins < 60) return `${mins} min ago`;
+  if (mins < 60) return `${mins}m ago`;
   return `${Math.floor(mins / 60)}h ago`;
 }
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 export default function Dashboard() {
   const navItems = useNavItems();
@@ -70,8 +82,10 @@ export default function Dashboard() {
   const [kpis, setKpis] = useState({ totalOrders: 0, revenue: "0", avgOrderValue: "0" });
   const [trendRaw, setTrendRaw] = useState<SalesTrendPoint[]>([]);
   const [recentOrders, setRecentOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const loadData = useCallback(async () => {
+    setLoading(true);
     try {
       const [kpiData, trendData, orderData] = await Promise.all([
         fetchKpis({ period: "today" }),
@@ -81,7 +95,9 @@ export default function Dashboard() {
       setKpis(kpiData);
       setTrendRaw(trendData);
       setRecentOrders(orderData);
-    } catch { /* fail gracefully */ }
+    } catch { /* fail gracefully */ } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
@@ -102,63 +118,38 @@ export default function Dashboard() {
   }));
 
   const kpiCards = [
-    {
-      label: "Today's Revenue",
-      value: `₹${parseFloat(kpis.revenue).toLocaleString("en-IN")}`,
-      up: true,
-      sub: "today",
-      icon: DollarSign,
-      iconBg: "bg-emerald-50",
-      iconColor: "text-emerald-600",
-    },
-    {
-      label: "Orders Today",
-      value: String(kpis.totalOrders),
-      up: true,
-      sub: "today",
-      icon: ClipboardList,
-      iconBg: "bg-blue-50",
-      iconColor: "text-blue-600",
-    },
-    {
-      label: "Avg. Order Value",
-      value: `₹${parseFloat(kpis.avgOrderValue).toLocaleString("en-IN")}`,
-      up: true,
-      sub: "today",
-      icon: ShoppingCart,
-      iconBg: "bg-amber-50",
-      iconColor: "text-amber-600",
-    },
+    { label: "Today's Revenue",  value: `₹${parseFloat(kpis.revenue).toLocaleString("en-IN")}`,      icon: DollarSign,    color: "text-emerald-600", bg: "bg-emerald-50" },
+    { label: "Orders Today",     value: String(kpis.totalOrders),                                      icon: ClipboardList, color: "text-blue-600",    bg: "bg-blue-50"    },
+    { label: "Avg. Order Value", value: `₹${parseFloat(kpis.avgOrderValue).toLocaleString("en-IN")}`, icon: ShoppingCart,  color: "text-amber-600",   bg: "bg-amber-50"   },
   ];
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#F5F5F7]">
-      <header className="h-12 bg-white border-b border-gray-200 flex items-center gap-3 px-4 shrink-0 z-10">
+    <div className="min-h-screen flex flex-col bg-muted/40">
+      {/* Header */}
+      <header className="h-12 bg-background border-b flex items-center gap-3 px-4 shrink-0 z-10">
         <div className="bg-[#714B67] text-white text-xs font-bold px-2.5 py-1 rounded-lg shrink-0">Logo</div>
-        <span className="text-sm font-bold" style={{ color: "#121B35" }}>Dashboard</span>
+        <span className="text-sm font-semibold">Dashboard</span>
         <div className="flex items-center gap-0.5 ml-auto">
           {[
             { icon: ShoppingCart,      to: ROUTES.ORDERS,      title: "Orders" },
             { icon: MonitorSmartphone, to: ROUTES.TABLE_VIEW,  title: "Tables" },
-            { icon: ArrowUpFromLine,   to: ROUTES.POS_SESSION, title: "POS" },
+            { icon: ArrowUpFromLine,   to: ROUTES.POS_SESSION, title: "POS"    },
           ].map(({ icon: Icon, to, title }) => (
-            <Link key={title} to={to} title={title}
-              className="p-2 text-gray-400 hover:text-[#714B67] hover:bg-gray-50 rounded-lg transition">
-              <Icon className="w-4 h-4" />
-            </Link>
+            <Button key={title} variant="ghost" size="icon-sm" asChild>
+              <Link to={to} title={title}><Icon className="size-4" /></Link>
+            </Button>
           ))}
         </div>
         <div className="relative" ref={navRef}>
-          <button onClick={() => setNavOpen(!navOpen)}
-            className="p-2 text-gray-400 hover:text-[#714B67] hover:bg-gray-50 rounded-lg transition">
-            <Menu className="w-4 h-4" />
-          </button>
+          <Button variant="ghost" size="icon-sm" onClick={() => setNavOpen(!navOpen)}>
+            <Menu className="size-4" />
+          </Button>
           {navOpen && (
-            <div className="absolute right-0 top-10 bg-white border border-gray-200 rounded-xl shadow-2xl z-50 w-52 py-1">
+            <div className="absolute right-0 top-10 bg-background border rounded-xl shadow-2xl z-50 w-52 py-1">
               {navItems.map(({ label, icon: Icon, to }) => (
                 <Link key={label} to={to} onClick={() => setNavOpen(false)}
-                  className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition">
-                  <Icon className="w-3.5 h-3.5 text-[#714B67]" />{label}
+                  className="flex items-center gap-3 px-4 py-2.5 text-sm text-muted-foreground hover:bg-muted transition">
+                  <Icon className="size-3.5 text-[#714B67]" />{label}
                 </Link>
               ))}
             </div>
@@ -167,113 +158,153 @@ export default function Dashboard() {
       </header>
 
       <div className="flex-1 overflow-auto p-4 sm:p-6 space-y-5">
+        {/* Greeting */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-lg font-bold" style={{ color: "#121B35" }}>Good morning 👋</h1>
-            <p className="text-xs text-gray-400 mt-0.5">
+            <h1 className="text-lg font-bold">Good morning 👋</h1>
+            <p className="text-xs text-muted-foreground mt-0.5">
               {new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
             </p>
           </div>
-          <Link to={ROUTES.POS_SESSION}
-            className="hidden sm:flex items-center gap-2 bg-[#714B67] hover:bg-[#5d3d55] text-white text-xs font-semibold px-4 py-2 rounded-xl transition shadow-sm">
-            <ArrowUpFromLine className="w-3.5 h-3.5" />Open POS
-          </Link>
+          <Button asChild className="hidden sm:flex bg-[#714B67] hover:bg-[#5d3d55]">
+            <Link to={ROUTES.POS_SESSION}>
+              <ArrowUpFromLine className="size-3.5" />Open POS
+            </Link>
+          </Button>
         </div>
 
         {/* KPI Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-          {kpiCards.map(kpi => (
-            <div key={kpi.label} className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4">
-              <div className="flex items-start justify-between mb-3">
-                <p className="text-xs text-gray-400 leading-tight">{kpi.label}</p>
-                <div className={`${kpi.iconBg} p-1.5 rounded-lg shrink-0`}>
-                  <kpi.icon className={`w-3.5 h-3.5 ${kpi.iconColor}`} />
-                </div>
-              </div>
-              <p className="text-2xl font-extrabold mb-1" style={{ color: "#121B35" }}>{kpi.value}</p>
-              <div className="flex items-center gap-1 text-xs font-semibold text-emerald-600">
-                <TrendingUp className="w-3 h-3" />
-                {kpi.sub}
-              </div>
-            </div>
-          ))}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {loading
+            ? Array.from({ length: 3 }).map((_, i) => (
+                <Card key={i}>
+                  <CardContent className="pt-5 space-y-2">
+                    <Skeleton className="h-3 w-24" />
+                    <Skeleton className="h-8 w-32" />
+                    <Skeleton className="h-3 w-16" />
+                  </CardContent>
+                </Card>
+              ))
+            : kpiCards.map(kpi => (
+                <Card key={kpi.label}>
+                  <CardContent className="pt-5">
+                    <div className="flex items-start justify-between mb-3">
+                      <p className="text-xs text-muted-foreground">{kpi.label}</p>
+                      <div className={`${kpi.bg} p-1.5 rounded-lg`}>
+                        <kpi.icon className={`size-3.5 ${kpi.color}`} />
+                      </div>
+                    </div>
+                    <p className="text-2xl font-extrabold tracking-tight">{kpi.value}</p>
+                    <div className="flex items-center gap-1 mt-1 text-xs font-medium text-emerald-600">
+                      <TrendingUp className="size-3" />today
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+          }
         </div>
 
-        {/* Sales Chart + Quick Links */}
+        {/* Chart + Quick Links */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
-            <p className="text-sm font-bold mb-4" style={{ color: "#121B35" }}>Today's Sales Trend</p>
-            <ResponsiveContainer width="100%" height={180}>
-              <LineChart data={hourlyData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="time" tick={{ fontSize: 10, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 10, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
-                <Tooltip
-                  contentStyle={{ borderRadius: 12, border: "1px solid #e5e7eb", fontSize: 12 }}
-                  labelStyle={{ color: "#121B35", fontWeight: 600 }}
-                  formatter={(v) => [`₹${v ?? 0}`, "Revenue"]}
-                />
-                <Line type="monotone" dataKey="revenue" stroke="#714B67" strokeWidth={2.5}
-                  dot={{ fill: "#714B67", r: 3 }} activeDot={{ r: 5 }} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle>Today's Sales Trend</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <Skeleton className="h-[180px] w-full" />
+              ) : (
+                <ChartContainer config={chartConfig} className="h-[180px] w-full">
+                  <LineChart data={hourlyData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                    <XAxis dataKey="time" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                    <ChartTooltip
+                      content={<ChartTooltipContent formatter={(v) => [`₹${v}`, "Revenue"]} />}
+                    />
+                    <Line type="monotone" dataKey="revenue"
+                      stroke="var(--color-revenue)" strokeWidth={2.5}
+                      dot={{ fill: "var(--color-revenue)", r: 3 }} activeDot={{ r: 5 }} />
+                  </LineChart>
+                </ChartContainer>
+              )}
+            </CardContent>
+          </Card>
 
-          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
-            <p className="text-sm font-bold mb-4" style={{ color: "#121B35" }}>Quick Links</p>
-            <div className="grid grid-cols-2 gap-2">
-              {QUICK_LINKS.map(ql => (
-                <Link key={ql.label} to={ql.to}
-                  className="flex flex-col items-center gap-2 p-3 rounded-xl border border-gray-100 hover:border-gray-200 hover:shadow-sm transition text-center">
-                  <div className={`${ql.color} p-2 rounded-lg`}>
-                    <ql.icon className="w-4 h-4" />
-                  </div>
-                  <span className="text-[11px] font-semibold text-gray-600">{ql.label}</span>
-                </Link>
-              ))}
-            </div>
-          </div>
+          <Card>
+            <CardHeader>
+              <CardTitle>Quick Links</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-2">
+                {QUICK_LINKS.map(ql => (
+                  <Link key={ql.label} to={ql.to}
+                    className="flex flex-col items-center gap-2 p-3 rounded-xl border hover:border-muted-foreground/30 hover:shadow-sm transition text-center">
+                    <div className={`${ql.color} p-2 rounded-lg`}>
+                      <ql.icon className="size-4" />
+                    </div>
+                    <span className="text-[11px] font-semibold text-muted-foreground">{ql.label}</span>
+                  </Link>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Recent Orders */}
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
-            <p className="text-sm font-bold" style={{ color: "#121B35" }}>Recent Orders</p>
-            <Link to={ROUTES.ORDERS} className="text-xs text-[#714B67] font-semibold hover:underline">
-              View all
-            </Link>
-          </div>
-          <div className="divide-y divide-gray-50">
-            {recentOrders.length === 0 ? (
-              <p className="text-sm text-gray-400 text-center py-8">No orders yet today</p>
-            ) : (
-              recentOrders.map(order => {
-                const status = mapStatus(order.status);
-                return (
-                  <div key={order.publicId} className="flex items-center gap-3 px-5 py-3 hover:bg-gray-50/50 transition">
-                    <div className="w-9 h-9 rounded-xl bg-[#714B67]/10 flex items-center justify-center shrink-0">
-                      <span className="text-xs font-bold text-[#714B67]">
-                        {order.table?.tableNumber ?? "T"}
-                      </span>
+        <Card>
+          <CardHeader className="border-b">
+            <div className="flex items-center justify-between">
+              <CardTitle>Recent Orders</CardTitle>
+              <Button variant="link" size="sm" asChild className="text-[#714B67] p-0 h-auto">
+                <Link to={ROUTES.ORDERS}>View all</Link>
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            {loading ? (
+              <div className="p-4 space-y-3">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="flex items-center gap-3">
+                    <Skeleton className="size-9 rounded-xl shrink-0" />
+                    <div className="flex-1 space-y-1.5">
+                      <Skeleton className="h-3 w-28" />
+                      <Skeleton className="h-3 w-20" />
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-semibold text-[#121B35]">{order.orderNumber}</p>
-                        <StatusBadge status={status} />
-                      </div>
-                      <p className="text-xs text-gray-400 mt-0.5">
-                        {order.items?.length ?? 0} items · {formatTimeAgo(order.createdAt)}
-                      </p>
-                    </div>
-                    <span className="text-sm font-bold text-[#121B35] shrink-0">
-                      ₹{parseFloat(order.grandTotal).toLocaleString("en-IN")}
-                    </span>
+                    <Skeleton className="h-4 w-16" />
                   </div>
-                );
-              })
+                ))}
+              </div>
+            ) : recentOrders.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-10">No orders yet today</p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Order</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Items</TableHead>
+                    <TableHead>Time</TableHead>
+                    <TableHead className="text-right">Total</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {recentOrders.map(order => (
+                    <TableRow key={order.publicId}>
+                      <TableCell className="font-semibold">{order.orderNumber}</TableCell>
+                      <TableCell><StatusBadge status={mapStatus(order.status)} /></TableCell>
+                      <TableCell className="text-muted-foreground">{order.items?.length ?? 0}</TableCell>
+                      <TableCell className="text-muted-foreground">{formatTimeAgo(order.createdAt)}</TableCell>
+                      <TableCell className="text-right font-semibold">
+                        ₹{parseFloat(order.grandTotal).toLocaleString("en-IN")}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             )}
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

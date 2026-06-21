@@ -26,7 +26,7 @@ import {
 import { listCategories, listProducts, type Category, type Product } from "../../api/products";
 import {
   createOrder, addItemToOrder, updateOrderItem, removeOrderItem, getOrder,
-  sendToKitchen,
+  sendToKitchen, attachCustomer,
   applyCoupon as applyCouponApi, findOrderItemForProduct, type Order,
 } from "../../api/orders";
 
@@ -384,8 +384,14 @@ function CustomerSelectModal({
 }) {
   const [query, setQuery] = useState("");
   const [customers, setCustomers] = useState<CustomerOption[]>([]);
+  const [adding, setAdding] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newEmail, setNewEmail] = useState("");
+  const [newPhone, setNewPhone] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [addError, setAddError] = useState("");
 
-  useEffect(() => {
+  function loadCustomers() {
     import("../../api/customers").then(({ fetchCustomers }) => {
       fetchCustomers({ pageSize: 200 }).then(data => {
         setCustomers(data.map(c => ({
@@ -396,12 +402,41 @@ function CustomerSelectModal({
         })));
       }).catch(() => {});
     });
-  }, []);
+  }
+
+  useEffect(() => { loadCustomers(); }, []);
 
   const filtered = customers.filter(c => {
     const q = query.toLowerCase();
     return c.name.toLowerCase().includes(q) || c.email.toLowerCase().includes(q) || c.phone.includes(q);
   });
+
+  async function handleAddCustomer() {
+    if (!newName.trim()) { setAddError("Name is required."); return; }
+    setSaving(true);
+    setAddError("");
+    try {
+      const { createCustomer } = await import("../../api/customers");
+      const created = await createCustomer({
+        name: newName.trim(),
+        email: newEmail.trim() || undefined,
+        phone: newPhone.trim() || undefined,
+      });
+      const opt: CustomerOption = {
+        id: created.publicId,
+        name: created.name,
+        email: created.email ?? "",
+        phone: created.phone ?? "",
+      };
+      setCustomers(prev => [opt, ...prev]);
+      onSelect(opt);
+      onClose();
+    } catch (e: any) {
+      setAddError(e?.response?.data?.error?.message ?? "Failed to create customer.");
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
     <div
@@ -413,7 +448,9 @@ function CustomerSelectModal({
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
           <div className="flex items-center gap-2">
             <User className="w-4 h-4 text-[#714B67]" />
-            <h3 className="text-sm font-bold" style={{ color: "#121B35" }}>Select Customer</h3>
+            <h3 className="text-sm font-bold" style={{ color: "#121B35" }}>
+              {adding ? "Add New Customer" : "Select Customer"}
+            </h3>
           </div>
           <button onClick={onClose}
             className="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100 transition">
@@ -421,70 +458,141 @@ function CustomerSelectModal({
           </button>
         </div>
 
-        {/* Search */}
-        <div className="px-4 pt-3 pb-2">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
-            <input
-              autoFocus
-              value={query}
-              onChange={e => setQuery(e.target.value)}
-              placeholder="Search by name, email, phone…"
-              className="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-200 rounded-xl outline-none focus:border-[#714B67] transition placeholder:text-gray-300 text-[#121B35]"
-            />
+        {adding ? (
+          /* ── Add new customer form ── */
+          <div className="px-5 py-4 space-y-3">
+            <div className="relative">
+              <User className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+              <input
+                autoFocus
+                value={newName}
+                onChange={e => { setNewName(e.target.value); setAddError(""); }}
+                placeholder="Full name *"
+                className="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-200 rounded-xl outline-none focus:border-[#714B67] transition placeholder:text-gray-300 text-[#121B35]"
+              />
+            </div>
+            <div className="relative">
+              <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+              <input
+                value={newPhone}
+                onChange={e => setNewPhone(e.target.value)}
+                placeholder="Phone number"
+                type="tel"
+                className="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-200 rounded-xl outline-none focus:border-[#714B67] transition placeholder:text-gray-300 text-[#121B35]"
+              />
+            </div>
+            <div className="relative">
+              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+              <input
+                value={newEmail}
+                onChange={e => setNewEmail(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && handleAddCustomer()}
+                placeholder="Email address"
+                type="email"
+                className="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-200 rounded-xl outline-none focus:border-[#714B67] transition placeholder:text-gray-300 text-[#121B35]"
+              />
+            </div>
+            {addError && <p className="text-xs text-red-500">{addError}</p>}
+            <div className="flex gap-2 pt-1">
+              <button
+                onClick={() => { setAdding(false); setAddError(""); }}
+                className="flex-1 py-2.5 text-sm font-semibold text-gray-500 border border-gray-200 rounded-xl hover:bg-gray-50 transition">
+                Back
+              </button>
+              <button
+                onClick={handleAddCustomer}
+                disabled={saving}
+                className="flex-1 py-2.5 text-sm font-bold bg-[#714B67] hover:bg-[#5d3d55] text-white rounded-xl transition shadow-sm disabled:opacity-50 flex items-center justify-center gap-2">
+                {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                Save & Select
+              </button>
+            </div>
           </div>
-        </div>
+        ) : (
+          <>
+            {/* Search */}
+            <div className="px-4 pt-3 pb-2">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                <input
+                  autoFocus
+                  value={query}
+                  onChange={e => setQuery(e.target.value)}
+                  placeholder="Search by name, email, phone…"
+                  className="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-200 rounded-xl outline-none focus:border-[#714B67] transition placeholder:text-gray-300 text-[#121B35]"
+                />
+              </div>
+            </div>
 
-        {/* List */}
-        <div className="max-h-64 overflow-y-auto divide-y divide-gray-50 px-2 pb-2">
-          {filtered.length === 0 ? (
-            <p className="text-sm text-gray-400 text-center py-8">No customers found</p>
-          ) : (
-            filtered.map(c => {
-              const isSelected = selectedCustomer?.id === c.id;
-              return (
+            {/* List */}
+            <div className="max-h-60 overflow-y-auto divide-y divide-gray-50 px-2 pb-2">
+              {/* Add new — always visible at top when searching */}
+              <button
+                onClick={() => setAdding(true)}
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left hover:bg-[#714B67]/5 transition group">
+                <div className="w-9 h-9 rounded-full bg-[#714B67]/10 flex items-center justify-center shrink-0 group-hover:bg-[#714B67]/20 transition">
+                  <Plus className="w-4 h-4 text-[#714B67]" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-[#714B67]">Add new customer</p>
+                  {query && (
+                    <p className="text-xs text-gray-400">Create "{query}"</p>
+                  )}
+                </div>
+              </button>
+
+              {filtered.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-6">No customers found</p>
+              ) : (
+                filtered.map(c => {
+                  const isSelected = selectedCustomer?.id === c.id;
+                  return (
+                    <button
+                      key={c.id}
+                      onClick={() => { onSelect(c); onClose(); }}
+                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition
+                        ${isSelected ? "bg-[#714B67]/5 border border-[#714B67]/20" : "hover:bg-gray-50"}`}>
+                      <div className="w-9 h-9 rounded-full bg-[#714B67]/10 flex items-center justify-center shrink-0">
+                        <span className="text-sm font-bold text-[#714B67]">{c.name[0]}</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-[#121B35] truncate">{c.name}</p>
+                        {c.email && (
+                          <span className="flex items-center gap-1 text-xs text-gray-400 truncate">
+                            <Mail className="w-3 h-3 shrink-0" />{c.email}
+                          </span>
+                        )}
+                        {c.phone && (
+                          <span className="flex items-center gap-1 text-xs text-gray-400">
+                            <Phone className="w-3 h-3 shrink-0" />{c.phone}
+                          </span>
+                        )}
+                      </div>
+                      {isSelected && <CheckCircle className="w-4 h-4 text-[#714B67] shrink-0" />}
+                    </button>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="border-t border-gray-100 px-5 py-3 flex items-center justify-between">
+              {selectedCustomer ? (
                 <button
-                  key={c.id}
-                  onClick={() => { onSelect(c); onClose(); }}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition
-                    ${isSelected ? "bg-[#714B67]/5 border border-[#714B67]/20" : "hover:bg-gray-50"}`}>
-                  <div className="w-9 h-9 rounded-full bg-[#714B67]/10 flex items-center justify-center shrink-0">
-                    <span className="text-sm font-bold text-[#714B67]">{c.name[0]}</span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-[#121B35] truncate">{c.name}</p>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span className="flex items-center gap-1 text-xs text-gray-400 truncate">
-                        <Mail className="w-3 h-3 shrink-0" />{c.email}
-                      </span>
-                    </div>
-                    <span className="flex items-center gap-1 text-xs text-gray-400">
-                      <Phone className="w-3 h-3 shrink-0" />{c.phone}
-                    </span>
-                  </div>
-                  {isSelected && <CheckCircle className="w-4 h-4 text-[#714B67] shrink-0" />}
+                  onClick={() => { onSelect(null); onClose(); }}
+                  className="text-xs text-red-400 hover:text-red-600 font-semibold transition">
+                  Remove customer
                 </button>
-              );
-            })
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="border-t border-gray-100 px-5 py-3 flex items-center justify-between">
-          {selectedCustomer ? (
-            <button
-              onClick={() => { onSelect(null); onClose(); }}
-              className="text-xs text-red-400 hover:text-red-600 font-semibold transition">
-              Remove customer
-            </button>
-          ) : (
-            <span className="text-xs text-gray-400">No customer attached</span>
-          )}
-          <button onClick={onClose}
-            className="text-xs font-semibold text-gray-500 hover:text-gray-700 transition">
-            Cancel
-          </button>
-        </div>
+              ) : (
+                <span className="text-xs text-gray-400">No customer attached</span>
+              )}
+              <button onClick={onClose}
+                className="text-xs font-semibold text-gray-500 hover:text-gray-700 transition">
+                Cancel
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
@@ -712,8 +820,15 @@ export default function POSOrder() {
     setSelectedTable({ floor: floor.publicId, floorName: floor.name, table: table.publicId, tableNumber: table.tableNumber });
   }
 
-  function handleCustomerSelect(c: CustomerOption | null) {
+  async function handleCustomerSelect(c: CustomerOption | null) {
     setAttachedCustomer(c);
+    if (activeOrderId) {
+      try {
+        await attachCustomer(activeOrderId, c?.id ?? null);
+      } catch {
+        toast.error("Failed to attach customer to order");
+      }
+    }
   }
 
   useEffect(() => {
@@ -779,6 +894,7 @@ export default function POSOrder() {
           type: "DINE_IN",
           source: "POS",
           tableId: selectedTable.table,
+          customerId: attachedCustomer?.id,
         });
         orderId = newOrder.publicId;
         setActiveOrderId(orderId);

@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { ROUTES } from "../../routes/paths";
+import { useNavItems } from "../../hooks/useNavItems";
 import {
   fetchKpis, fetchSalesTrend, fetchTopCategories,
   fetchTopProducts, fetchTopOrders,
@@ -18,21 +19,12 @@ import {
   CartesianGrid, PieChart, Pie, Cell,
 } from "recharts";
 
-const NAV_ITEMS = [
-  { label: "Products",           icon: LayoutGrid,    to: ROUTES.PRODUCTS },
-  { label: "Category",           icon: Tag,           to: ROUTES.CATEGORIES },
-  { label: "Payment Method",     icon: CreditCard,    to: ROUTES.PAYMENTS },
-  { label: "Coupon & Promotion", icon: Ticket,        to: ROUTES.COUPONS },
-  { label: "Booking",            icon: CalendarRange, to: ROUTES.FLOOR_TABLES },
-  { label: "User/Employee",      icon: Users,         to: ROUTES.EMPLOYEES },
-  { label: "KDS",                icon: ChefHat,       to: ROUTES.KDS },
-  { label: "Reports",            icon: BarChart3,     to: ROUTES.REPORTS },
-  { label: "Log Out",            icon: LogOut,        to: ROUTES.LOGIN },
-];
+const NAV_ITEMS_PLACEHOLDER = null; // replaced by useNavItems hook
 
 const PIE_COLORS = ["#e07b54", "#2196f3", "#4caf50", "#9c27b0", "#714B67", "#ff9800"];
 
 export default function Reports() {
+  const navItems = useNavItems();
   const [navOpen,        setNavOpen]        = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [period,         setPeriod]         = useState<ReportPeriod>("today");
@@ -45,11 +37,13 @@ export default function Reports() {
   const [products,   setProducts]   = useState<TopProduct[]>([]);
   const [orders,     setOrders]     = useState<TopOrder[]>([]);
   const [loading,    setLoading]    = useState(true);
+  const [error,      setError]      = useState<string | null>(null);
 
   const navRef = useRef<HTMLDivElement>(null);
 
   const loadAll = useCallback(async (p: ReportPeriod, from?: string, to?: string) => {
     setLoading(true);
+    setError(null);
     try {
       const params = { period: p, from, to };
       const [kpiData, trendData, catData, prodData, ordData] = await Promise.all([
@@ -64,7 +58,12 @@ export default function Reports() {
       setCategories(catData);
       setProducts(prodData);
       setOrders(ordData);
-    } catch { /* silently fail — show stale data */ } finally {
+    } catch (err: any) {
+      const msg = err?.response?.data?.error?.message ?? err?.message ?? "Failed to load report data";
+      setError(msg);
+      // keep zeros so cards still render
+      setKpis(prev => prev ?? { totalOrders: 0, revenue: "0.00", avgOrderValue: "0.00" });
+    } finally {
       setLoading(false);
     }
   }, []);
@@ -132,7 +131,7 @@ export default function Reports() {
           </button>
           {navOpen && (
             <div className="absolute right-0 top-10 bg-white border border-gray-200 rounded-xl shadow-2xl z-50 w-52 py-1">
-              {NAV_ITEMS.map(({ label, icon: Icon, to }) => (
+              {navItems.map(({ label, icon: Icon, to }) => (
                 <Link key={label} to={to} onClick={() => setNavOpen(false)}
                   className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition">
                   <Icon className="w-3.5 h-3.5 text-[#714B67]" />{label}
@@ -187,13 +186,21 @@ export default function Reports() {
           </div>
         )}
 
+        {/* Error banner */}
+        {error && (
+          <div className="flex items-center gap-2 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-600">
+            <X className="w-3.5 h-3.5 shrink-0" />
+            {error}
+          </div>
+        )}
+
         {/* KPI Cards */}
-        {kpis && (
+        {!loading && (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {[
-              { label: "Total Orders",    value: String(kpis.totalOrders),                 up: true,  trend: "" },
-              { label: "Revenue",         value: `₹${parseFloat(kpis.revenue).toLocaleString("en-IN")}`, up: true, trend: "" },
-              { label: "Avg Order Value", value: `₹${parseFloat(kpis.avgOrderValue).toLocaleString("en-IN")}`, up: true, trend: "" },
+              { label: "Total Orders",    value: String(kpis?.totalOrders ?? 0) },
+              { label: "Revenue",         value: `₹${parseFloat(kpis?.revenue ?? "0").toLocaleString("en-IN")}` },
+              { label: "Avg Order Value", value: `₹${parseFloat(kpis?.avgOrderValue ?? "0").toLocaleString("en-IN")}` },
             ].map(kpi => (
               <div key={kpi.label} className="bg-white rounded-2xl border border-gray-200 shadow-sm px-5 py-4">
                 <p className="text-xs text-gray-400 mb-1">{kpi.label}</p>

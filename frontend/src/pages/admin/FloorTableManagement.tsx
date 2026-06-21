@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { ROUTES } from "../../routes/paths";
+import { useNavItems } from "../../hooks/useNavItems";
 import {
   fetchFloors,
   createFloor,

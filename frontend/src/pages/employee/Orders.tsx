@@ -84,7 +84,7 @@ function OrderDetailModal({ order, onClose, onDelete }: {
             <div>
               <p className="text-xs text-gray-400 mb-1">Customer</p>
               <p className="text-sm font-medium" style={{ color: "#121B35" }}>
-                {order.customer?.name ?? order.guestName ?? "—"}
+                {order.customer?.name ?? order.guestName ?? "Walk-in"}
               </p>
             </div>
           </div>
@@ -300,11 +300,11 @@ export default function Orders() {
                         <div className="flex items-center gap-2">
                           <div className="w-7 h-7 rounded-full bg-[#714B67]/10 flex items-center justify-center shrink-0">
                             <span className="text-xs font-semibold text-[#714B67]">
-                              {(order.customer?.name ?? order.guestName ?? "G")[0]}
+                              {(order.customer?.name ?? order.guestName ?? "W")[0]}
                             </span>
                           </div>
                           <span className="text-sm font-medium" style={{ color: "#121B35" }}>
-                            {order.customer?.name ?? order.guestName ?? "Guest"}
+                            {order.customer?.name ?? order.guestName ?? "Walk-in"}
                           </span>
                         </div>
                       </td>
