@@ -26,7 +26,7 @@ import {
 import { listCategories, listProducts, type Category, type Product } from "../../api/products";
 import {
   createOrder, addItemToOrder, updateOrderItem, removeOrderItem, getOrder,
-  sendToKitchen,
+  sendToKitchen, attachCustomer,
   applyCoupon as applyCouponApi, findOrderItemForProduct, type Order,
 } from "../../api/orders";
 
@@ -438,6 +438,33 @@ function CustomerSelectModal({
     return c.name.toLowerCase().includes(q) || c.email.toLowerCase().includes(q) || c.phone.includes(q);
   });
 
+  async function handleAddCustomer() {
+    if (!newName.trim()) { setAddError("Name is required."); return; }
+    setSaving(true);
+    setAddError("");
+    try {
+      const { createCustomer } = await import("../../api/customers");
+      const created = await createCustomer({
+        name: newName.trim(),
+        email: newEmail.trim() || undefined,
+        phone: newPhone.trim() || undefined,
+      });
+      const opt: CustomerOption = {
+        id: created.publicId,
+        name: created.name,
+        email: created.email ?? "",
+        phone: created.phone ?? "",
+      };
+      setCustomers(prev => [opt, ...prev]);
+      onSelect(opt);
+      onClose();
+    } catch (e: any) {
+      setAddError(e?.response?.data?.error?.message ?? "Failed to create customer.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4"
@@ -815,8 +842,15 @@ export default function POSOrder() {
     setSelectedTable({ floor: floor.publicId, floorName: floor.name, table: table.publicId, tableNumber: table.tableNumber });
   }
 
-  function handleCustomerSelect(c: CustomerOption | null) {
+  async function handleCustomerSelect(c: CustomerOption | null) {
     setAttachedCustomer(c);
+    if (activeOrderId) {
+      try {
+        await attachCustomer(activeOrderId, c?.id ?? null);
+      } catch {
+        toast.error("Failed to attach customer to order");
+      }
+    }
   }
 
   useEffect(() => {
@@ -882,6 +916,7 @@ export default function POSOrder() {
           type: "DINE_IN",
           source: "POS",
           tableId: selectedTable.table,
+          customerId: attachedCustomer?.id,
         });
         orderId = newOrder.publicId;
         setActiveOrderId(orderId);

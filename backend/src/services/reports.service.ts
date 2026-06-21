@@ -139,7 +139,7 @@ export async function getTopCategories(params: {
         AND o.paid_at >= ${from}
         AND o.paid_at <= ${to}
       GROUP BY pc.public_id, pc.name, pc.color
-      ORDER BY revenue::numeric DESC
+      ORDER BY COALESCE(SUM(oi.line_total), 0) DESC
       LIMIT ${limit}
     `,
   );
