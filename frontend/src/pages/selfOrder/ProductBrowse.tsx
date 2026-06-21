@@ -1,15 +1,17 @@
 import { useState, useEffect, useCallback } from "react";
-import { Search, ShoppingCart, ArrowLeft, Plus, Minus, X, ChevronRight, Loader2 } from "lucide-react";
+import { Search, ShoppingCart, ArrowLeft, Plus, Minus, X, ChevronRight, Loader2, LogOut } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { ROUTES } from "../../routes/paths";
 import {
   getSoSession,
+  clearSoSession,
   fetchSoCategories,
   fetchSoProducts,
   addSoCartItem,
   type SoCategory,
   type SoProduct,
 } from "../../api/self-order";
+import { clearAuth } from "../../api/auth";
 
 // ── Local cart item (managed in sessionStorage) ──────────────────
 interface CartItem {
@@ -191,7 +193,17 @@ export default function ProductBrowse() {
               <ArrowLeft className="w-3.5 h-3.5" />Back
             </Link>
             <span className="text-sm font-bold" style={{ color: "#121B35" }}>Browse Products</span>
-            <div className="w-10" />
+            <button
+              onClick={() => {
+                clearSoSession();
+                clearAuth();
+                navigate(ROUTES.LOGIN);
+              }}
+              className="p-1.5 text-gray-400 hover:text-red-500 transition"
+              title="Logout"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
           </div>
 
           {/* Search */}

@@ -24,11 +24,11 @@ const SLIDES = [
 ];
 
 export default function Splash() {
-  const [current,      setCurrent]      = useState(0);
-  const [resolving,    setResolving]    = useState(false);
+  const [current, setCurrent] = useState(0);
+  const [resolving, setResolving] = useState(false);
   const [resolveError, setResolveError] = useState<string | null>(null);
   const [searchParams] = useSearchParams();
-  const navigate       = useNavigate();
+  const navigate = useNavigate();
 
   // Validate token then redirect to login carrying the tableToken
   useEffect(() => {

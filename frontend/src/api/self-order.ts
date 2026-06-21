@@ -85,7 +85,8 @@ export interface SoCartItem {
   productName: string;
   quantity: number;
   unitPrice: string;
-  totalPrice: string;
+  lineTotal: string;
+  taxAmount: string;
   notes?: string | null;
 }
 
@@ -100,10 +101,10 @@ export interface SoCart {
   grandTotal: string;
   items: SoCartItem[];
   totals?: {
-    subtotal: string;
-    tax: string;
-    discount: string;
-    total: string;
+    subtotal: number;
+    taxAmount: number;
+    discountAmount: number;
+    grandTotal: number;
   };
 }
 
@@ -209,5 +210,14 @@ export async function getSoOrderHistory(
   sessionToken: string,
 ): Promise<SoOrder[]> {
   const { data } = await soApi(sessionToken).get(`/s/${tableToken}/orders`);
+  return data;
+}
+
+export async function getSoOrderDetail(
+  tableToken: string,
+  sessionToken: string,
+  orderId: string,
+): Promise<SoOrder> {
+  const { data } = await soApi(sessionToken).get(`/s/${tableToken}/orders/${orderId}`);
   return data;
 }

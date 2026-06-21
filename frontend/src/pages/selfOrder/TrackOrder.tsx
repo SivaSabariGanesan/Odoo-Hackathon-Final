@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
-import { ArrowLeft, Loader2, RefreshCw } from "lucide-react";
-import { Link } from "react-router-dom";
+import { ArrowLeft, Loader2, RefreshCw, LogOut } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
 import { ROUTES } from "../../routes/paths";
-import { getSoSession, getSoOrderHistory, type SoOrder } from "../../api/self-order";
+import { getSoSession, clearSoSession, getSoOrderHistory, type SoOrder } from "../../api/self-order";
+import { clearAuth } from "../../api/auth";
 
 type DisplayStatus = "To Cook" | "Preparing" | "Completed" | "Draft" | "Cancelled";
 
@@ -28,6 +29,7 @@ const STATUS_STYLES: Record<DisplayStatus, string> = {
 
 export default function TrackOrder() {
   const session = getSoSession();
+  const navigate = useNavigate();
 
   const [orders,  setOrders]  = useState<SoOrder[]>([]);
   const [loading, setLoading] = useState(!!session);
@@ -39,7 +41,11 @@ export default function TrackOrder() {
     setError(null);
     try {
       const data = await getSoOrderHistory(session.tableToken, session.sessionToken);
-      setOrders(Array.isArray(data) ? data : []);
+      // Filter out DRAFT orders (abandoned carts) - only show confirmed orders
+      const confirmedOrders = Array.isArray(data) 
+        ? data.filter(o => o.status !== "DRAFT") 
+        : [];
+      setOrders(confirmedOrders);
     } catch {
       setError("Could not load orders.");
     } finally {
@@ -68,7 +74,17 @@ export default function TrackOrder() {
       >
         {/* Header */}
         <div className="bg-white border-b border-gray-100 px-4 py-3 flex items-center gap-2 shrink-0">
-          <div className="w-8" />
+          <button
+            onClick={() => {
+              clearSoSession();
+              clearAuth();
+              navigate(ROUTES.LOGIN);
+            }}
+            className="p-1 text-gray-400 hover:text-red-500 transition"
+            title="Logout"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
           <span className="flex-1 text-center text-sm font-bold" style={{ color: "#121B35" }}>
             Order History
           </span>

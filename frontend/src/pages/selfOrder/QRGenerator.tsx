@@ -109,7 +109,7 @@ export default function QRGenerator() {
                         </p>
                         <div className="bg-white border border-gray-200 p-2 rounded-lg">
                           <img
-                            src={tableQRUrl((table as any).qrToken ?? table.publicId, 120)}
+                            src={tableQRUrl(table.qrToken, 120)}
                             alt={`QR for Table ${table.tableNumber}`}
                             className="w-28 h-28 rounded"
                           />

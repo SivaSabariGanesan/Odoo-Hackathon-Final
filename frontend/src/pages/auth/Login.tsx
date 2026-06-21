@@ -100,7 +100,9 @@ export default function Login() {
             Odoo Cafe POS
           </h1>
           <p className="text-gray-500 mt-2 text-sm sm:text-base">
-            Sign in with your staff credentials to continue.
+            {tableToken
+              ? "Sign in or create an account to start ordering."
+              : "Sign in with your staff credentials to continue."}
           </p>
         </div>
 
