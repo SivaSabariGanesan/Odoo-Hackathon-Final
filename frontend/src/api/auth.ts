@@ -42,3 +42,9 @@ export async function signupRequest(payload: SignupPayload): Promise<AuthRespons
 export async function logoutRequest(refreshToken: string): Promise<void> {
   await api.post("/v1/auth/logout", { refreshToken });
 }
+
+export function clearAuth(): void {
+  localStorage.removeItem("accessToken");
+  localStorage.removeItem("refreshToken");
+  localStorage.removeItem("authUser");
+}

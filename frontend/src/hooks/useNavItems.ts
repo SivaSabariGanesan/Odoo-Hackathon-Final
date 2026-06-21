@@ -1,6 +1,6 @@
 import {
   LayoutGrid, Tag, CreditCard, Ticket, CalendarRange,
-  Users, ChefHat, BarChart3, LogOut, type LucideIcon,
+  Users, ChefHat, BarChart3, LogOut, QrCode, Settings2, type LucideIcon,
 } from "lucide-react";
 import { ROUTES } from "../routes/paths";
 import { useAuth } from "../context/AuthContext";
@@ -20,8 +20,10 @@ const ALL_NAV_ITEMS: NavItem[] = [
   { label: "Coupon & Promotion", icon: Ticket,        to: ROUTES.COUPONS,      roles: ["ADMIN"] },
   { label: "Booking",            icon: CalendarRange, to: ROUTES.FLOOR_TABLES, roles: ["ADMIN"] },
   { label: "User/Employee",      icon: Users,         to: ROUTES.EMPLOYEES,    roles: ["ADMIN"] },
-  { label: "Reports",            icon: BarChart3,     to: ROUTES.REPORTS,      roles: ["ADMIN"] },
-  { label: "KDS",                icon: ChefHat,       to: ROUTES.KDS,          roles: ["ADMIN", "KITCHEN"] },
+  { label: "Reports",            icon: BarChart3,     to: ROUTES.REPORTS,               roles: ["ADMIN"] },
+  { label: "Self Order",         icon: Settings2,     to: ROUTES.SELF_ORDER_SETTINGS,   roles: ["ADMIN"] },
+  { label: "QR Codes",           icon: QrCode,        to: ROUTES.QR_GENERATOR,          roles: ["ADMIN"] },
+  { label: "KDS",                icon: ChefHat,       to: ROUTES.KDS,                   roles: ["ADMIN", "KITCHEN"] },
   { label: "Log Out",            icon: LogOut,        to: ROUTES.LOGIN },
 ];
 

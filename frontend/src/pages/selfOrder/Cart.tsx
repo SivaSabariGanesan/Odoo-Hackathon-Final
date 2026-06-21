@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
-import { Minus, Plus, X, Tag, ArrowLeft, CheckCircle, Loader2, AlertCircle } from "lucide-react";
+import { Minus, Plus, X, Tag, ArrowLeft, CheckCircle, Loader2, AlertCircle, CreditCard, LogOut } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { ROUTES } from "../../routes/paths";
 import {
   getSoSession,
+  clearSoSession,
   getSoCart,
   updateSoCartItem,
   removeSoCartItem,
@@ -11,6 +12,23 @@ import {
   soCheckout,
   type SoCart,
 } from "../../api/self-order";
+import { clearAuth } from "../../api/auth";
+import axios from "axios";
+
+const BASE_API = import.meta.env.VITE_API_URL
+  ? `${import.meta.env.VITE_API_URL}/api`
+  : "/api";
+
+// Unauthenticated payment helpers (self-order flow uses order publicId directly)
+async function selfOrderCreatePaymentTxn(orderId: string, paymentMethodId: string) {
+  const { data } = await axios.post(`${BASE_API}/v1/orders/${orderId}/payment-order`, { paymentMethodId });
+  return data.data as { transactionId: string };
+}
+
+async function selfOrderInitiateCashfree(orderId: string, transactionId: string) {
+  const { data } = await axios.post(`${BASE_API}/v1/orders/${orderId}/payments/cashfree`, { transactionId });
+  return data.data as { paymentSessionId: string; environment: string };
+}
 
 // Local cart fallback (used when server cart isn't available)
 interface LocalItem { productId: string; name: string; price: number; qty: number }
@@ -43,6 +61,7 @@ export default function Cart() {
   // Checkout
   const [checkingOut,   setCheckingOut]   = useState(false);
   const [checkoutError, setCheckoutError] = useState("");
+  const [paymentStep,   setPaymentStep]   = useState<"idle" | "processing" | "done">("idle");
 
   // Load server cart on mount
   const loadCart = useCallback(async () => {
@@ -96,11 +115,54 @@ export default function Cart() {
     setCheckingOut(true);
     setCheckoutError("");
     try {
-      await soCheckout(session.tableToken, session.sessionToken);
-      clearLocalCart();
-      navigate(ROUTES.ORDER_CONFIRMED);
+      // 1. Send order to kitchen & get orderId back
+      const result = await soCheckout(session.tableToken, session.sessionToken);
+      const orderId: string = (result as any)?.orderId;
+
+      if (!orderId) {
+        // Order placed, no payment — go to confirmed
+        clearLocalCart();
+        navigate(ROUTES.ORDER_CONFIRMED, { state: { orderId: null } });
+        return;
+      }
+
+      // 2. Attempt Cashfree payment directly (customer self-order flow)
+      setPaymentStep("processing");
+      try {
+        // Create a Cashfree payment session via public self-order endpoint
+        const payResp = await axios.post(
+          `${import.meta.env.VITE_API_URL ?? ""}/api/v1/self-order/s/${session.tableToken}/orders/${orderId}/pay-cashfree`
+        );
+        const { paymentSessionId, environment } = payResp.data;
+
+        const { load } = await import("@cashfreepayments/cashfree-js");
+        const cashfree = await load({
+          mode: environment === "PRODUCTION" ? "production" : "sandbox",
+        });
+
+        cashfree.checkout({
+          paymentSessionId,
+          redirectTarget: "_modal",
+        }).then((cfResult: any) => {
+          if (cfResult.error) {
+            setCheckoutError(cfResult.error.message ?? "Payment failed.");
+            setPaymentStep("idle");
+          } else {
+            clearLocalCart();
+            setPaymentStep("done");
+            navigate(ROUTES.ORDER_CONFIRMED, { state: { orderId } });
+          }
+          setCheckingOut(false);
+        });
+        return; // modal handles setCheckingOut
+      } catch (payErr: any) {
+        // Payment not available or failed — order still confirmed (pay at table)
+        console.warn("[Cart] Payment initiation failed:", payErr);
+        clearLocalCart();
+        navigate(ROUTES.ORDER_CONFIRMED, { state: { orderId } });
+      }
     } catch (e: any) {
-      setCheckoutError(e?.response?.data?.message ?? "Checkout failed. Please try again.");
+      setCheckoutError(e?.response?.data?.message ?? "Checkout failed.");
     } finally {
       setCheckingOut(false);
     }
@@ -125,31 +187,32 @@ export default function Cart() {
         name: i.productName,
         price: parseFloat(i.unitPrice),
         qty: i.quantity,
-        total: parseFloat(i.totalPrice),
+        total: parseFloat(i.lineTotal),
       }))
     : localItems.map(i => ({ id: i.productId, name: i.name, price: i.price, qty: i.qty, total: i.price * i.qty }));
 
   // Totals
+  // Totals — server returns { subtotal, taxAmount, discountAmount, grandTotal } as numbers in totals
   const subtotal = useServer && serverCart?.totals
-    ? parseFloat(serverCart.totals.subtotal)
+    ? Number(serverCart.totals.subtotal)
     : useServer && serverCart
       ? parseFloat(serverCart.subtotal)
       : localItems.reduce((s, i) => s + i.price * i.qty, 0);
 
   const tax = useServer && serverCart?.totals
-    ? parseFloat(serverCart.totals.tax)
+    ? Number(serverCart.totals.taxAmount)
     : useServer && serverCart
       ? parseFloat(serverCart.taxAmount)
       : Math.round(subtotal * 0.05);
 
   const discount = useServer && serverCart?.totals
-    ? parseFloat(serverCart.totals.discount)
+    ? Number(serverCart.totals.discountAmount)
     : useServer && serverCart
       ? parseFloat(serverCart.discountAmount)
       : 0;
 
   const total = useServer && serverCart?.totals
-    ? parseFloat(serverCart.totals.total)
+    ? Number(serverCart.totals.grandTotal)
     : useServer && serverCart
       ? parseFloat(serverCart.grandTotal)
       : subtotal + tax - discount;
@@ -171,7 +234,17 @@ export default function Cart() {
             <ArrowLeft className="w-3.5 h-3.5" />Back
           </Link>
           <span className="flex-1 text-center text-sm font-bold" style={{ color: "#121B35" }}>Your Order</span>
-          <div className="w-10" />
+          <button
+            onClick={() => {
+              clearSoSession();
+              clearAuth();
+              navigate(ROUTES.LOGIN);
+            }}
+            className="p-1.5 text-gray-400 hover:text-red-500 transition"
+            title="Logout"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
         </div>
 
         {/* Body */}
@@ -300,8 +373,11 @@ export default function Cart() {
             disabled={isEmpty || checkingOut}
             className="w-full bg-[#714B67] hover:bg-[#5d3d55] text-white text-sm font-bold py-3 rounded-2xl transition shadow-md mt-1 disabled:opacity-50 flex items-center justify-center gap-2"
           >
-            {checkingOut && <Loader2 className="w-4 h-4 animate-spin" />}
-            {checkingOut ? "Placing order…" : "Confirm Order"}
+            {checkingOut && paymentStep === "idle"  && <Loader2 className="w-4 h-4 animate-spin" />}
+            {checkingOut && paymentStep === "processing" && <CreditCard className="w-4 h-4" />}
+            {checkingOut && paymentStep === "idle"       ? "Placing order…"
+              : checkingOut && paymentStep === "processing" ? "Opening payment…"
+              : "Confirm Order"}
           </button>
         </div>
       </div>

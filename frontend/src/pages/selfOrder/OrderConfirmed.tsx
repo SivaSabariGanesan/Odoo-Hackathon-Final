@@ -1,8 +1,42 @@
-import { CheckCircle } from "lucide-react";
-import { Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { CheckCircle, Loader2 } from "lucide-react";
+import { Link, useLocation } from "react-router-dom";
 import { ROUTES } from "../../routes/paths";
+import { getSoSession, getSoOrderDetail } from "../../api/self-order";
 
 export default function OrderConfirmed() {
+  const location = useLocation();
+  const session = getSoSession();
+  
+  const [orderNumber, setOrderNumber] = useState<string | null>(null);
+  const [orderTotal, setOrderTotal] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadOrderDetails() {
+      try {
+        // Try to get orderId from navigation state (passed from Cart)
+        const orderId = location.state?.orderId;
+        
+        if (orderId && session) {
+          const order = await getSoOrderDetail(session.tableToken, session.sessionToken, orderId);
+          setOrderNumber(order.orderNumber);
+          setOrderTotal(order.grandTotal);
+        } else {
+          // Fallback: show generic confirmation
+          setOrderNumber(null);
+          setOrderTotal(null);
+        }
+      } catch (err) {
+        console.error("Failed to load order details:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadOrderDetails();
+  }, [location.state, session]);
+
   return (
     <div className="min-h-screen bg-[#F5F5F7] flex items-center justify-center p-4">
       <div className="w-full max-w-sm bg-white rounded-3xl shadow-2xl border border-gray-200 overflow-hidden flex flex-col items-center justify-center text-center px-6"
@@ -15,12 +49,26 @@ export default function OrderConfirmed() {
           </div>
         </div>
 
-        {/* Order number */}
-        <p className="text-2xl font-extrabold mb-1" style={{ color: "#121B35" }}>#2205</p>
-        <p className="text-sm text-gray-500 mb-4">Order Confirmed</p>
+        {loading ? (
+          <Loader2 className="w-8 h-8 animate-spin text-gray-400 mb-4" />
+        ) : (
+          <>
+            {/* Order number */}
+            <p className="text-2xl font-extrabold mb-1" style={{ color: "#121B35" }}>
+              {orderNumber ? `#${orderNumber}` : "Order Confirmed"}
+            </p>
+            <p className="text-sm text-gray-500 mb-4">
+              {orderNumber ? "Order Confirmed" : "Your order has been placed"}
+            </p>
 
-        {/* Amount */}
-        <p className="text-4xl font-extrabold text-[#714B67] mb-8">₹350</p>
+            {/* Amount */}
+            {orderTotal && (
+              <p className="text-4xl font-extrabold text-[#714B67] mb-8">
+                ₹{parseFloat(orderTotal).toFixed(0)}
+              </p>
+            )}
+          </>
+        )}
 
         {/* Track button */}
         <Link to={ROUTES.TRACK_ORDER}

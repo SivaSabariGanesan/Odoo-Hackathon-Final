@@ -8,6 +8,10 @@ import { orderHistoryService } from "../services/order-history.service.ts";
 import { customerAuthMiddleware } from "../middleware/customer-auth.ts";
 import { addItemSchema, updateItemSchema } from "../validators/cart.schema.ts";
 import { couponSchema } from "../validators/checkout.schema.ts";
+import { db } from "../../../db/index.ts";
+import { and, eq } from "drizzle-orm";
+import { orders, paymentMethods } from "../../../db/schema/index.ts";
+import * as paymentSvc from "../../../services/payments.service.ts";
 
 const router = createRouter();
 
@@ -387,7 +391,15 @@ router.openapi(
     const order = await posCoreStubs.getOrCreateDraftForTable(tableId);
     
     await posCoreStubs.calculateTotals(order.id);
-    await posCoreStubs.sendToKitchen(order.id);
+    const result = await posCoreStubs.sendToKitchen(order.id);
+    
+    // Check if sendToKitchen failed
+    if (result && "error" in result) {
+      return c.json({ 
+        error: result.error,
+        message: "Could not send order to kitchen"
+      }, 400);
+    }
     
     return c.json({ 
       orderId: order.publicId,
@@ -435,6 +447,74 @@ router.openapi(
     }
     
     return c.json(order, 200);
+  }
+);
+
+router.openapi(
+  createRoute({
+    method: "post",
+    path: "/s/{token}/orders/{orderId}/pay-cashfree",
+    tags: ["Self Ordering"],
+    summary: "Initiate Cashfree Payment for Order",
+    description: "Public endpoint for customers to pay via Cashfree after checkout.",
+    security: [], // public — no auth required
+    request: {
+      params: z.object({ token: z.string().uuid(), orderId: z.string().uuid() }),
+    },
+    responses: {
+      200: {
+        description: "Cashfree session created",
+        content: {
+          "application/json": {
+            schema: z.object({
+              paymentSessionId: z.string(),
+              environment: z.string(),
+            }),
+          },
+        },
+      },
+      400: { description: "Payment not available" },
+      404: { description: "Order not found" },
+    },
+  }),
+  async (c) => {
+    const { orderId } = c.req.valid("param");
+    
+    try {
+      // 1. Get Cashfree payment method
+      const cfMethod = await db.query.paymentMethods.findFirst({
+        where: and(
+          eq(paymentMethods.type, "CASHFREE"),
+          eq(paymentMethods.isEnabled, true),
+        ),
+      });
+      
+      if (!cfMethod) {
+        return c.json({ error: "CASHFREE_NOT_AVAILABLE" }, 400);
+      }
+
+      // 2. Create payment order (transaction) — use sentinel actorId = 0n for self-order
+      const paymentOrder = await paymentSvc.createPaymentOrder(
+        orderId,
+        cfMethod.publicId,
+        0n // self-order has no staff actor
+      );
+
+      // 3. Initiate Cashfree session
+      const cfResult = await paymentSvc.createCashfreeOrder(
+        orderId,
+        paymentOrder.transactionId,
+        0n
+      );
+
+      return c.json({
+        paymentSessionId: cfResult.paymentSessionId,
+        environment: cfResult.environment,
+      }, 200);
+    } catch (err: any) {
+      console.error("[Self-Order Payment] Error:", err);
+      return c.json({ error: "PAYMENT_INIT_FAILED", message: err.message }, 500);
+    }
   }
 );
 

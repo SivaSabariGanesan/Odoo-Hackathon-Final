@@ -16,7 +16,7 @@ export interface Table {
   isOccupied?: boolean;
   posX: number;
   posY: number;
-  qrToken?: string;
+  qrToken: string;
 }
 
 interface ApiResponse<T> { success: true; data: T }
