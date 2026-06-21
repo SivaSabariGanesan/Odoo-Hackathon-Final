@@ -209,90 +209,90 @@ async function seed() {
   const catRows = await db
     .insert(productCategories)
     .values([
-      { publicId: IDS.categories.beverages, name: "Beverages",   color: "#3b82f6", sortOrder: 1 },
-      { publicId: IDS.categories.mains,     name: "Main Course", color: "#ef4444", sortOrder: 2 },
-      { publicId: IDS.categories.snacks,    name: "Snacks",      color: "#f59e0b", sortOrder: 3 },
-      { name: "Desserts",   color: "#ec4899", sortOrder: 4 },
-      { name: "Breakfast",  color: "#10b981", sortOrder: 5 },
+      { publicId: IDS.categories.beverages, name: "Beverages", color: "#3b82f6", sortOrder: 1 },
+      { publicId: IDS.categories.mains, name: "Main Course", color: "#ef4444", sortOrder: 2 },
+      { publicId: IDS.categories.snacks, name: "Snacks", color: "#f59e0b", sortOrder: 3 },
+      { name: "Desserts", color: "#ec4899", sortOrder: 4 },
+      { name: "Breakfast", color: "#10b981", sortOrder: 5 },
       { name: "Rice & Biryani", color: "#8b5cf6", sortOrder: 6 },
-      { name: "Breads",     color: "#f97316", sortOrder: 7 },
+      { name: "Breads", color: "#f97316", sortOrder: 7 },
     ])
     .returning({ id: productCategories.id, publicId: productCategories.publicId, name: productCategories.name });
 
-  const beveragesId    = catRows[0]!.id;
-  const mainsId        = catRows[1]!.id;
-  const snacksId       = catRows[2]!.id;
-  const dessertsId     = catRows[3]!.id;
-  const breakfastId    = catRows[4]!.id;
-  const riceId         = catRows[5]!.id;
-  const breadsId       = catRows[6]!.id;
+  const beveragesId = catRows[0]!.id;
+  const mainsId = catRows[1]!.id;
+  const snacksId = catRows[2]!.id;
+  const dessertsId = catRows[3]!.id;
+  const breakfastId = catRows[4]!.id;
+  const riceId = catRows[5]!.id;
+  const breadsId = catRows[6]!.id;
 
   const prodRows = await db
     .insert(products)
     .values([
       // ── Beverages (8) ──────────────────────────────────────────────────────
-      { publicId: IDS.products.mangoLassi,  categoryId: beveragesId, name: "Mango Lassi",        description: "Sweet mango yogurt drink",          price: "80.00",  uom: "GLASS",  taxType: "INCLUSIVE", taxRate: "5.00", isFeatured: true, sortOrder: 1 },
-      { publicId: IDS.products.masalaChai,  categoryId: beveragesId, name: "Masala Chai",         description: "Spiced Indian tea",                 price: "30.00",  uom: "CUP",    taxRate: "0.00", sortOrder: 2 },
-      {                                      categoryId: beveragesId, name: "Cold Coffee",         description: "Chilled coffee with milk",          price: "90.00",  uom: "GLASS",  taxRate: "5.00", sortOrder: 3 },
-      {                                      categoryId: beveragesId, name: "Fresh Lime Soda",     description: "Zesty lime with soda",              price: "50.00",  uom: "GLASS",  taxRate: "5.00", sortOrder: 4 },
-      {                                      categoryId: beveragesId, name: "Rose Sharbat",        description: "Chilled rose syrup drink",          price: "45.00",  uom: "GLASS",  taxRate: "0.00", sortOrder: 5 },
-      {                                      categoryId: beveragesId, name: "Filter Coffee",       description: "South Indian filter coffee",        price: "35.00",  uom: "CUP",    taxRate: "0.00", sortOrder: 6 },
-      {                                      categoryId: beveragesId, name: "Strawberry Smoothie", description: "Fresh strawberry blended shake",    price: "110.00", uom: "GLASS",  taxRate: "5.00", sortOrder: 7 },
-      {                                      categoryId: beveragesId, name: "Buttermilk",          description: "Salted spiced chaas",               price: "25.00",  uom: "GLASS",  taxRate: "0.00", sortOrder: 8 },
+      { publicId: IDS.products.mangoLassi, categoryId: beveragesId, name: "Mango Lassi", description: "Sweet mango yogurt drink", price: "80.00", uom: "GLASS", taxType: "INCLUSIVE", taxRate: "5.00", isFeatured: true, sortOrder: 1 },
+      { publicId: IDS.products.masalaChai, categoryId: beveragesId, name: "Masala Chai", description: "Spiced Indian tea", price: "30.00", uom: "CUP", taxRate: "0.00", sortOrder: 2 },
+      { categoryId: beveragesId, name: "Cold Coffee", description: "Chilled coffee with milk", price: "90.00", uom: "GLASS", taxRate: "5.00", sortOrder: 3 },
+      { categoryId: beveragesId, name: "Fresh Lime Soda", description: "Zesty lime with soda", price: "50.00", uom: "GLASS", taxRate: "5.00", sortOrder: 4 },
+      { categoryId: beveragesId, name: "Rose Sharbat", description: "Chilled rose syrup drink", price: "45.00", uom: "GLASS", taxRate: "0.00", sortOrder: 5 },
+      { categoryId: beveragesId, name: "Filter Coffee", description: "South Indian filter coffee", price: "35.00", uom: "CUP", taxRate: "0.00", sortOrder: 6 },
+      { categoryId: beveragesId, name: "Strawberry Smoothie", description: "Fresh strawberry blended shake", price: "110.00", uom: "GLASS", taxRate: "5.00", sortOrder: 7 },
+      { categoryId: beveragesId, name: "Buttermilk", description: "Salted spiced chaas", price: "25.00", uom: "GLASS", taxRate: "0.00", sortOrder: 8 },
 
       // ── Main Course (10) ───────────────────────────────────────────────────
-      { publicId: IDS.products.paneerTikka, categoryId: mainsId, name: "Paneer Tikka",            description: "Grilled cottage cheese",            price: "180.00", uom: "PLATE",  taxRate: "5.00", sendToKitchen: true, sortOrder: 1 },
-      {                                      categoryId: mainsId, name: "Dal Makhani",             description: "Slow-cooked black lentils",         price: "160.00", uom: "BOWL",   taxRate: "5.00", sendToKitchen: true, sortOrder: 2 },
-      {                                      categoryId: mainsId, name: "Butter Chicken",          description: "Creamy tomato chicken curry",       price: "220.00", uom: "PLATE",  taxRate: "5.00", sendToKitchen: true, sortOrder: 3 },
-      {                                      categoryId: mainsId, name: "Palak Paneer",            description: "Cottage cheese in spinach gravy",  price: "170.00", uom: "BOWL",   taxRate: "5.00", sendToKitchen: true, sortOrder: 4 },
-      {                                      categoryId: mainsId, name: "Chana Masala",            description: "Spiced chickpea curry",             price: "150.00", uom: "BOWL",   taxRate: "5.00", sendToKitchen: true, sortOrder: 5 },
-      {                                      categoryId: mainsId, name: "Chicken Curry",           description: "Home-style chicken gravy",          price: "200.00", uom: "PLATE",  taxRate: "5.00", sendToKitchen: true, sortOrder: 6 },
-      {                                      categoryId: mainsId, name: "Aloo Matar",              description: "Potato and pea curry",              price: "130.00", uom: "BOWL",   taxRate: "5.00", sendToKitchen: true, sortOrder: 7 },
-      {                                      categoryId: mainsId, name: "Egg Curry",               description: "Boiled eggs in masala gravy",       price: "140.00", uom: "PLATE",  taxRate: "5.00", sendToKitchen: true, sortOrder: 8 },
-      {                                      categoryId: mainsId, name: "Mix Veg",                 description: "Seasonal vegetables in gravy",      price: "145.00", uom: "BOWL",   taxRate: "5.00", sendToKitchen: true, sortOrder: 9 },
-      {                                      categoryId: mainsId, name: "Mutton Rogan Josh",       description: "Kashmiri mutton curry",             price: "280.00", uom: "PLATE",  taxRate: "5.00", sendToKitchen: true, sortOrder: 10 },
+      { publicId: IDS.products.paneerTikka, categoryId: mainsId, name: "Paneer Tikka", description: "Grilled cottage cheese", price: "180.00", uom: "PLATE", taxRate: "5.00", sendToKitchen: true, sortOrder: 1 },
+      { categoryId: mainsId, name: "Dal Makhani", description: "Slow-cooked black lentils", price: "160.00", uom: "BOWL", taxRate: "5.00", sendToKitchen: true, sortOrder: 2 },
+      { categoryId: mainsId, name: "Butter Chicken", description: "Creamy tomato chicken curry", price: "220.00", uom: "PLATE", taxRate: "5.00", sendToKitchen: true, sortOrder: 3 },
+      { categoryId: mainsId, name: "Palak Paneer", description: "Cottage cheese in spinach gravy", price: "170.00", uom: "BOWL", taxRate: "5.00", sendToKitchen: true, sortOrder: 4 },
+      { categoryId: mainsId, name: "Chana Masala", description: "Spiced chickpea curry", price: "150.00", uom: "BOWL", taxRate: "5.00", sendToKitchen: true, sortOrder: 5 },
+      { categoryId: mainsId, name: "Chicken Curry", description: "Home-style chicken gravy", price: "200.00", uom: "PLATE", taxRate: "5.00", sendToKitchen: true, sortOrder: 6 },
+      { categoryId: mainsId, name: "Aloo Matar", description: "Potato and pea curry", price: "130.00", uom: "BOWL", taxRate: "5.00", sendToKitchen: true, sortOrder: 7 },
+      { categoryId: mainsId, name: "Egg Curry", description: "Boiled eggs in masala gravy", price: "140.00", uom: "PLATE", taxRate: "5.00", sendToKitchen: true, sortOrder: 8 },
+      { categoryId: mainsId, name: "Mix Veg", description: "Seasonal vegetables in gravy", price: "145.00", uom: "BOWL", taxRate: "5.00", sendToKitchen: true, sortOrder: 9 },
+      { categoryId: mainsId, name: "Mutton Rogan Josh", description: "Kashmiri mutton curry", price: "280.00", uom: "PLATE", taxRate: "5.00", sendToKitchen: true, sortOrder: 10 },
 
       // ── Snacks (8) ─────────────────────────────────────────────────────────
-      { publicId: IDS.products.samosa,      categoryId: snacksId, name: "Samosa",                 description: "Crispy potato snack",               price: "20.00",  uom: "PIECE",  taxRate: "5.00", sortOrder: 1 },
-      {                                      categoryId: snacksId, name: "Veg Pakora",             description: "Mixed vegetable fritters",          price: "60.00",  uom: "PLATE",  taxRate: "5.00", sortOrder: 2 },
-      {                                      categoryId: snacksId, name: "Paneer Roll",            description: "Paneer wrapped in paratha",         price: "90.00",  uom: "PIECE",  taxRate: "5.00", sortOrder: 3 },
-      {                                      categoryId: snacksId, name: "Aloo Tikki",             description: "Shallow-fried potato patty",        price: "40.00",  uom: "PIECE",  taxRate: "5.00", sortOrder: 4 },
-      {                                      categoryId: snacksId, name: "Cheese Toast",           description: "Toasted bread with cheese",         price: "70.00",  uom: "PLATE",  taxRate: "5.00", sortOrder: 5 },
-      {                                      categoryId: snacksId, name: "Pav Bhaji",              description: "Spiced veggie mash with buttered buns", price: "100.00", uom: "PLATE", taxRate: "5.00", sortOrder: 6 },
-      {                                      categoryId: snacksId, name: "Masala Papad",           description: "Roasted papad with toppings",       price: "30.00",  uom: "PIECE",  taxRate: "5.00", sortOrder: 7 },
-      {                                      categoryId: snacksId, name: "French Fries",           description: "Crispy salted potato fries",        price: "80.00",  uom: "PLATE",  taxRate: "5.00", sortOrder: 8 },
+      { publicId: IDS.products.samosa, categoryId: snacksId, name: "Samosa", description: "Crispy potato snack", price: "20.00", uom: "PIECE", taxRate: "5.00", sortOrder: 1 },
+      { categoryId: snacksId, name: "Veg Pakora", description: "Mixed vegetable fritters", price: "60.00", uom: "PLATE", taxRate: "5.00", sortOrder: 2 },
+      { categoryId: snacksId, name: "Paneer Roll", description: "Paneer wrapped in paratha", price: "90.00", uom: "PIECE", taxRate: "5.00", sortOrder: 3 },
+      { categoryId: snacksId, name: "Aloo Tikki", description: "Shallow-fried potato patty", price: "40.00", uom: "PIECE", taxRate: "5.00", sortOrder: 4 },
+      { categoryId: snacksId, name: "Cheese Toast", description: "Toasted bread with cheese", price: "70.00", uom: "PLATE", taxRate: "5.00", sortOrder: 5 },
+      { categoryId: snacksId, name: "Pav Bhaji", description: "Spiced veggie mash with buttered buns", price: "100.00", uom: "PLATE", taxRate: "5.00", sortOrder: 6 },
+      { categoryId: snacksId, name: "Masala Papad", description: "Roasted papad with toppings", price: "30.00", uom: "PIECE", taxRate: "5.00", sortOrder: 7 },
+      { categoryId: snacksId, name: "French Fries", description: "Crispy salted potato fries", price: "80.00", uom: "PLATE", taxRate: "5.00", sortOrder: 8 },
 
       // ── Desserts (7) ───────────────────────────────────────────────────────
-      {                                      categoryId: dessertsId, name: "Gulab Jamun",          description: "Soft milk dumplings in syrup",      price: "50.00",  uom: "PIECE",  taxRate: "5.00", sortOrder: 1 },
-      {                                      categoryId: dessertsId, name: "Gajar Halwa",          description: "Carrot pudding with khoya",         price: "70.00",  uom: "BOWL",   taxRate: "5.00", sortOrder: 2 },
-      {                                      categoryId: dessertsId, name: "Kulfi",                description: "Traditional frozen Indian milk dessert", price: "60.00", uom: "PIECE", taxRate: "5.00", sortOrder: 3 },
-      {                                      categoryId: dessertsId, name: "Rasgulla",             description: "Soft chenna balls in syrup",        price: "40.00",  uom: "PIECE",  taxRate: "5.00", sortOrder: 4 },
-      {                                      categoryId: dessertsId, name: "Chocolate Brownie",    description: "Warm fudge brownie with ice cream", price: "120.00", uom: "PIECE",  taxRate: "5.00", sortOrder: 5 },
-      {                                      categoryId: dessertsId, name: "Phirni",               description: "Ground rice pudding",               price: "65.00",  uom: "BOWL",   taxRate: "5.00", sortOrder: 6 },
-      {                                      categoryId: dessertsId, name: "Ice Cream Scoop",      description: "Single scoop — choice of flavour",  price: "50.00",  uom: "PIECE",  taxRate: "5.00", sortOrder: 7 },
+      { categoryId: dessertsId, name: "Gulab Jamun", description: "Soft milk dumplings in syrup", price: "50.00", uom: "PIECE", taxRate: "5.00", sortOrder: 1 },
+      { categoryId: dessertsId, name: "Gajar Halwa", description: "Carrot pudding with khoya", price: "70.00", uom: "BOWL", taxRate: "5.00", sortOrder: 2 },
+      { categoryId: dessertsId, name: "Kulfi", description: "Traditional frozen Indian milk dessert", price: "60.00", uom: "PIECE", taxRate: "5.00", sortOrder: 3 },
+      { categoryId: dessertsId, name: "Rasgulla", description: "Soft chenna balls in syrup", price: "40.00", uom: "PIECE", taxRate: "5.00", sortOrder: 4 },
+      { categoryId: dessertsId, name: "Chocolate Brownie", description: "Warm fudge brownie with ice cream", price: "120.00", uom: "PIECE", taxRate: "5.00", sortOrder: 5 },
+      { categoryId: dessertsId, name: "Phirni", description: "Ground rice pudding", price: "65.00", uom: "BOWL", taxRate: "5.00", sortOrder: 6 },
+      { categoryId: dessertsId, name: "Ice Cream Scoop", description: "Single scoop — choice of flavour", price: "50.00", uom: "PIECE", taxRate: "5.00", sortOrder: 7 },
 
       // ── Breakfast (7) ──────────────────────────────────────────────────────
-      {                                      categoryId: breakfastId, name: "Masala Dosa",         description: "Crispy dosa with potato filling",   price: "80.00",  uom: "PLATE",  taxRate: "5.00", sendToKitchen: true, sortOrder: 1 },
-      {                                      categoryId: breakfastId, name: "Idli Sambar",         description: "Steamed rice cakes with sambar",    price: "60.00",  uom: "PLATE",  taxRate: "0.00", sendToKitchen: true, sortOrder: 2 },
-      {                                      categoryId: breakfastId, name: "Poha",                description: "Flattened rice with spices",        price: "45.00",  uom: "PLATE",  taxRate: "0.00", sendToKitchen: true, sortOrder: 3 },
-      {                                      categoryId: breakfastId, name: "Upma",                description: "Semolina porridge with vegetables", price: "50.00",  uom: "PLATE",  taxRate: "0.00", sendToKitchen: true, sortOrder: 4 },
-      {                                      categoryId: breakfastId, name: "Bread Omelette",      description: "Egg omelette with toasted bread",   price: "70.00",  uom: "PLATE",  taxRate: "5.00", sendToKitchen: true, sortOrder: 5 },
-      {                                      categoryId: breakfastId, name: "Paratha",             description: "Whole wheat stuffed flatbread",     price: "55.00",  uom: "PIECE",  taxRate: "0.00", sendToKitchen: true, sortOrder: 6 },
-      {                                      categoryId: breakfastId, name: "Vermicelli Upma",     description: "Semiya cooked with veggies",        price: "50.00",  uom: "BOWL",   taxRate: "0.00", sendToKitchen: true, sortOrder: 7 },
+      { categoryId: breakfastId, name: "Masala Dosa", description: "Crispy dosa with potato filling", price: "80.00", uom: "PLATE", taxRate: "5.00", sendToKitchen: true, sortOrder: 1 },
+      { categoryId: breakfastId, name: "Idli Sambar", description: "Steamed rice cakes with sambar", price: "60.00", uom: "PLATE", taxRate: "0.00", sendToKitchen: true, sortOrder: 2 },
+      { categoryId: breakfastId, name: "Poha", description: "Flattened rice with spices", price: "45.00", uom: "PLATE", taxRate: "0.00", sendToKitchen: true, sortOrder: 3 },
+      { categoryId: breakfastId, name: "Upma", description: "Semolina porridge with vegetables", price: "50.00", uom: "PLATE", taxRate: "0.00", sendToKitchen: true, sortOrder: 4 },
+      { categoryId: breakfastId, name: "Bread Omelette", description: "Egg omelette with toasted bread", price: "70.00", uom: "PLATE", taxRate: "5.00", sendToKitchen: true, sortOrder: 5 },
+      { categoryId: breakfastId, name: "Paratha", description: "Whole wheat stuffed flatbread", price: "55.00", uom: "PIECE", taxRate: "0.00", sendToKitchen: true, sortOrder: 6 },
+      { categoryId: breakfastId, name: "Vermicelli Upma", description: "Semiya cooked with veggies", price: "50.00", uom: "BOWL", taxRate: "0.00", sendToKitchen: true, sortOrder: 7 },
 
       // ── Rice & Biryani (5) ─────────────────────────────────────────────────
-      {                                      categoryId: riceId, name: "Veg Biryani",              description: "Fragrant basmati with vegetables",  price: "160.00", uom: "PLATE",  taxRate: "5.00", sendToKitchen: true, sortOrder: 1 },
-      {                                      categoryId: riceId, name: "Chicken Biryani",          description: "Classic dum chicken biryani",       price: "220.00", uom: "PLATE",  taxRate: "5.00", sendToKitchen: true, sortOrder: 2 },
-      {                                      categoryId: riceId, name: "Mutton Biryani",           description: "Rich mutton dum biryani",           price: "260.00", uom: "PLATE",  taxRate: "5.00", sendToKitchen: true, sortOrder: 3 },
-      {                                      categoryId: riceId, name: "Egg Fried Rice",           description: "Indo-Chinese egg fried rice",       price: "130.00", uom: "PLATE",  taxRate: "5.00", sendToKitchen: true, sortOrder: 4 },
-      {                                      categoryId: riceId, name: "Jeera Rice",               description: "Cumin-tempered basmati rice",       price: "100.00", uom: "PLATE",  taxRate: "5.00", sendToKitchen: true, sortOrder: 5 },
+      { categoryId: riceId, name: "Veg Biryani", description: "Fragrant basmati with vegetables", price: "160.00", uom: "PLATE", taxRate: "5.00", sendToKitchen: true, sortOrder: 1 },
+      { categoryId: riceId, name: "Chicken Biryani", description: "Classic dum chicken biryani", price: "220.00", uom: "PLATE", taxRate: "5.00", sendToKitchen: true, sortOrder: 2 },
+      { categoryId: riceId, name: "Mutton Biryani", description: "Rich mutton dum biryani", price: "260.00", uom: "PLATE", taxRate: "5.00", sendToKitchen: true, sortOrder: 3 },
+      { categoryId: riceId, name: "Egg Fried Rice", description: "Indo-Chinese egg fried rice", price: "130.00", uom: "PLATE", taxRate: "5.00", sendToKitchen: true, sortOrder: 4 },
+      { categoryId: riceId, name: "Jeera Rice", description: "Cumin-tempered basmati rice", price: "100.00", uom: "PLATE", taxRate: "5.00", sendToKitchen: true, sortOrder: 5 },
 
       // ── Breads (5) ─────────────────────────────────────────────────────────
-      {                                      categoryId: breadsId, name: "Butter Naan",            description: "Leavened bread baked in tandoor",   price: "40.00",  uom: "PIECE",  taxRate: "5.00", sendToKitchen: true, sortOrder: 1 },
-      {                                      categoryId: breadsId, name: "Garlic Naan",            description: "Naan topped with garlic butter",    price: "50.00",  uom: "PIECE",  taxRate: "5.00", sendToKitchen: true, sortOrder: 2 },
-      {                                      categoryId: breadsId, name: "Tandoori Roti",          description: "Whole wheat roti from tandoor",     price: "25.00",  uom: "PIECE",  taxRate: "0.00", sendToKitchen: true, sortOrder: 3 },
-      {                                      categoryId: breadsId, name: "Kulcha",                 description: "Soft leavened bread with stuffing", price: "55.00",  uom: "PIECE",  taxRate: "5.00", sendToKitchen: true, sortOrder: 4 },
-      {                                      categoryId: breadsId, name: "Puri",                   description: "Deep-fried puffed wheat bread",     price: "20.00",  uom: "PIECE",  taxRate: "0.00", sendToKitchen: true, sortOrder: 5 },
+      { categoryId: breadsId, name: "Butter Naan", description: "Leavened bread baked in tandoor", price: "40.00", uom: "PIECE", taxRate: "5.00", sendToKitchen: true, sortOrder: 1 },
+      { categoryId: breadsId, name: "Garlic Naan", description: "Naan topped with garlic butter", price: "50.00", uom: "PIECE", taxRate: "5.00", sendToKitchen: true, sortOrder: 2 },
+      { categoryId: breadsId, name: "Tandoori Roti", description: "Whole wheat roti from tandoor", price: "25.00", uom: "PIECE", taxRate: "0.00", sendToKitchen: true, sortOrder: 3 },
+      { categoryId: breadsId, name: "Kulcha", description: "Soft leavened bread with stuffing", price: "55.00", uom: "PIECE", taxRate: "5.00", sendToKitchen: true, sortOrder: 4 },
+      { categoryId: breadsId, name: "Puri", description: "Deep-fried puffed wheat bread", price: "20.00", uom: "PIECE", taxRate: "0.00", sendToKitchen: true, sortOrder: 5 },
 
       // ── Inactive / deleted ──────────────────────────────────────────────────
       { publicId: IDS.products.deletedSnack, categoryId: snacksId, name: "Old Pakora", price: "25.00", taxRate: "5.00", isAvailable: false, deletedAt: lastWeek },
@@ -300,9 +300,9 @@ async function seed() {
     .returning({ id: products.id, publicId: products.publicId, name: products.name });
 
   // Keep stable variable names used by the rest of the seed
-  const mangoId  = prodRows.find(p => p.publicId === IDS.products.mangoLassi)!.id;
-  const chaiId   = prodRows.find(p => p.publicId === IDS.products.masalaChai)!.id;
-  const tikkaId  = prodRows.find(p => p.publicId === IDS.products.paneerTikka)!.id;
+  const mangoId = prodRows.find(p => p.publicId === IDS.products.mangoLassi)!.id;
+  const chaiId = prodRows.find(p => p.publicId === IDS.products.masalaChai)!.id;
+  const tikkaId = prodRows.find(p => p.publicId === IDS.products.paneerTikka)!.id;
   const samosaId = prodRows.find(p => p.publicId === IDS.products.samosa)!.id;
 
   console.log("🪑 Floors & tables…");
@@ -323,7 +323,6 @@ async function seed() {
       floorId: groundFloorId,
       tableNumber: "T-01",
       seats: 4,
-      state: "ACTIVE",
       posX: 10,
       posY: 10,
     },
@@ -332,7 +331,6 @@ async function seed() {
       floorId: groundFloorId,
       tableNumber: "T-02",
       seats: 4,
-      state: "ACTIVE",
       posX: 120,
       posY: 10,
     },
@@ -341,7 +339,6 @@ async function seed() {
       floorId: groundFloorId,
       tableNumber: "T-03",
       seats: 6,
-      state: "AVAILABLE",
       posX: 230,
       posY: 10,
     },
@@ -350,7 +347,6 @@ async function seed() {
       floorId: outdoorFloorId,
       tableNumber: "O-01",
       seats: 2,
-      state: "AVAILABLE",
       isActive: false,
     },
   ]);
@@ -446,9 +442,9 @@ async function seed() {
   const methodRows = await db
     .insert(paymentMethods)
     .values([
-      { publicId: IDS.paymentMethods.cash, name: "Cash",            type: "CASH"     as const, sortOrder: 1 },
-      { publicId: IDS.paymentMethods.card, name: "Card",            type: "CARD"     as const, sortOrder: 2 },
-      { publicId: IDS.paymentMethods.upi,  name: "UPI / Cashfree", type: "CASHFREE" as const, sortOrder: 3 },
+      { publicId: IDS.paymentMethods.cash, name: "Cash", type: "CASH" as const, sortOrder: 1 },
+      { publicId: IDS.paymentMethods.card, name: "Card", type: "CARD" as const, sortOrder: 2 },
+      { publicId: IDS.paymentMethods.upi, name: "UPI / Cashfree", type: "CASHFREE" as const, sortOrder: 3 },
     ] as any)
     .returning({ id: paymentMethods.id, publicId: paymentMethods.publicId, name: paymentMethods.name });
 

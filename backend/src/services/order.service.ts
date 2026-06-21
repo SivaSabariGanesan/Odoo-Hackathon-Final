@@ -493,9 +493,75 @@ async function _finalizeOrderStatus(
     .set({ status: "PAID", paidAt: new Date(), updatedAt: new Date() })
     .where(eq(orders.id, orderId));
 
+  // Auto-send any unsent items (TO_COOK) to kitchen
+  const unsentItems = await tx
+    .select()
+    .from(orderItems)
+    .where(and(eq(orderItems.orderId, orderId), eq(orderItems.kitchenState, "TO_COOK")));
+
+  console.log(`[KDS] orderId=${orderId} unsent items count=${unsentItems.length}`);
+
+  if (unsentItems.length > 0) {
+    // Fetch order details outside the tx query (tx.query may not support relations)
+    const orderRow = await db.query.orders.findFirst({
+      where: eq(orders.id, orderId),
+      with: { table: { with: { floor: true } } },
+    });
+
+    const ticketCountRes = await tx
+      .select({ maxTicket: sql<number>`COALESCE(MAX(ticket_number), 0)::int` })
+      .from(kitchenTickets)
+      .where(eq(kitchenTickets.orderId, orderId));
+
+    const ticketNumber = (ticketCountRes[0]?.maxTicket ?? 0) + 1;
+    const tableLabel = orderRow?.table
+      ? `${orderRow.table.tableNumber} / ${(orderRow.table as any).floor?.name ?? ""}`
+      : null;
+
+    const [ticket] = await tx.insert(kitchenTickets).values({
+      orderId,
+      tableId: lockedOrder.table_id ?? null,
+      ticketNumber,
+      tableLabel,
+      orderType: orderRow?.type ?? "TAKEAWAY",
+      status: "PENDING",
+    }).returning();
+
+    console.log(`[KDS] created ticket id=${ticket?.id} ticketNumber=${ticketNumber}`);
+
+    if (ticket) {
+      for (const item of unsentItems) {
+        await tx.insert(kitchenTicketItems).values({
+          ticketId: ticket.id,
+          orderItemId: item.id,
+          productName: item.productName,
+          quantity: item.quantity,
+          notes: item.notes ?? null,
+          state: "TO_COOK",
+        });
+        await tx.update(orderItems)
+          .set({ kitchenState: "PREPARING", updatedAt: new Date() })
+          .where(eq(orderItems.id, item.id));
+      }
+
+      broadcastOrderCreated({
+        orderId: lockedOrder.public_id,
+        orderNumber: orderRow?.orderNumber ?? "",
+        tokenNumber: orderRow?.tokenNumber ?? null,
+        tableLabel,
+        status: "SENT_TO_KITCHEN",
+        items: unsentItems.map((i: any) => ({ name: i.productName, quantity: i.quantity, notes: i.notes })),
+      });
+    }
+  }
+
+  // Complete only IN_PROGRESS tickets (not the newly created PENDING one)
   await tx.update(kitchenTickets)
     .set({ status: "COMPLETED", completedAt: new Date(), updatedAt: new Date() })
-    .where(and(eq(kitchenTickets.orderId, orderId), sql`status != 'CANCELLED'`));
+    .where(and(
+      eq(kitchenTickets.orderId, orderId),
+      eq(kitchenTickets.status, "IN_PROGRESS"),
+    ));
 
   emit("order_completed", {
     orderId: lockedOrder.public_id,

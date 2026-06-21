@@ -1,6 +1,6 @@
 import { db } from "../../../db/index.ts";
 import { orders, orderItems } from "../../../db/schema/08_orders.ts";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 import { mappingService } from "./mapping.service.ts";
 
 export class OrderHistoryService {
@@ -36,7 +36,6 @@ export class OrderHistoryService {
       customerStatus: mappingService.mapOrderStatusToCustomerFacing(o.status),
       items: o.items,
     }));
-  }
   }
 
   async getOrderDetail(tableId: string | number, orderPublicId: string) {
