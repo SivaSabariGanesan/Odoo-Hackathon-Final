@@ -700,7 +700,22 @@ export default function POSOrder() {
   function handleTableSelect(floor: Floor | null, table: Table | null) {
     if (!floor?.publicId || !table?.publicId) {
       setSelectedTable(null);
+      // Clear cart if table is removed
+      if (activeOrderId) {
+        setCart([]);
+        setActiveOrderId(null);
+        setAppliedCoupon(null);
+        setOrderTotals(null);
+      }
       return;
+    }
+    // If table changed while cart has items, warn and clear
+    if (selectedTable && selectedTable.table !== table.publicId && cart.length > 0) {
+      setCart([]);
+      setActiveOrderId(null);
+      setAppliedCoupon(null);
+      setOrderTotals(null);
+      toast.info("Cart cleared — table changed");
     }
     setSelectedTable({ floor: floor.publicId, floorName: floor.name, table: table.publicId, tableNumber: table.tableNumber });
   }
@@ -757,11 +772,22 @@ export default function POSOrder() {
   }
 
   async function addToCart(p: Product) {
+    // Require table selection before ordering
+    if (!selectedTable) {
+      toast.error("Please select a table first");
+      setTableOpen(true);
+      return;
+    }
+
     // Eagerly create a real order on first item so coupon validation has an orderId
     let orderId = activeOrderId;
     if (!orderId) {
       try {
-        const newOrder = await createOrder({ type: "TAKEAWAY", source: "POS" });
+        const newOrder = await createOrder({
+          type: "DINE_IN",
+          source: "POS",
+          tableId: selectedTable.table,
+        });
         orderId = newOrder.publicId;
         setActiveOrderId(orderId);
       } catch {
@@ -887,7 +913,17 @@ export default function POSOrder() {
       </div>
       {/* Product grid */}
       <div className="flex-1 p-2 sm:p-3 overflow-y-auto">
-        {productsLoading ? (
+        {!selectedTable ? (
+          <div className="flex flex-col items-center justify-center h-full text-center gap-3 py-12">
+            <MonitorSmartphone className="w-10 h-10 text-gray-300" />
+            <p className="text-sm font-semibold text-gray-400">Select a table to start ordering</p>
+            <button
+              onClick={() => setTableOpen(true)}
+              className="px-4 py-2 bg-[#714B67] text-white text-xs font-bold rounded-xl hover:bg-[#5d3d55] transition">
+              Select Table
+            </button>
+          </div>
+        ) : productsLoading ? (
           <div className="flex items-center justify-center h-32 text-gray-400">
             <Loader2 className="w-5 h-5 animate-spin mr-2" />Loading...
           </div>
